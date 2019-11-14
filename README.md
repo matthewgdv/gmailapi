@@ -1,19 +1,19 @@
 Overview
 ====================
 
-A wrapper around the incredible O365 library (https://github.com/O365/python-o365) for using Outlook and People services (for now). Provides a config class for handling credentials and persisting them to the drive, a query interface similar to SQLAlchemy, and subclasses of many O365 classes with additional functionality.
+A library providing Python bindings for the Gmail api.
 
 Installation
 ====================
 
 To install use pip:
 
-    $ pip install office365
+    $ pip install gmailapi
 
 
 Or clone the repo:
 
-    $ git clone https://github.com/matthewgdv/office.git
+    $ git clone https://github.com/matthewgdv/gmailapi.git
     $ python setup.py install
 
 
@@ -32,7 +32,7 @@ You can contribute in many ways:
 Report Bugs
 --------------------
 
-Report bugs at https://github.com/matthewgdv/office/issues
+Report bugs at https://github.com/matthewgdv/gmailapi/issues
 
 If you are reporting a bug, please include:
 
