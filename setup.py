@@ -17,7 +17,7 @@ setup(
     description="A library providing Python bindings for the Gmail api.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/matthewgdv/office",
+    url="https://github.com/matthewgdv/gmailapi",
     license="MIT",
     classifiers=[
       "Development Status :: 3 - Alpha",
