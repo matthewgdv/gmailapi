@@ -11,8 +11,7 @@ from google.auth.transport.requests import Request
 from pathmagic import File
 from subtypes import Dict_
 from miscutils import OneOrMany
-from iotools import Config, Gui
-import iotools.widget as widget
+from iotools import Config, Gui, widget
 
 from .proxy import SystemDefaults, LabelAccessor
 from .label import BaseLabel, Label, UserLabel, SystemLabel, Category
