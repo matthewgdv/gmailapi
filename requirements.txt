@@ -1,6 +1,6 @@
 google-api-python-client
 google-auth
-pymaybe
+maybe-else
 pathmagic
 pysubtypes
 pymiscutils
