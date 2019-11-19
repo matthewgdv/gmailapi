@@ -1,17 +1,16 @@
 from __future__ import annotations
 
-import os
-from typing import List, Union, Collection, TYPE_CHECKING
+from functools import total_ordering
+from typing import Any, List, Union, Collection, Optional, TYPE_CHECKING
 import base64
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.application import MIMEApplication
 
-from maybe import Maybe
 from pathmagic import File, Dir, PathLike
-from subtypes import Dict_, DateTime, Str, Markup
-from miscutils import is_non_string_iterable, OneOrMany
+from subtypes import Dict_, DateTime, Str, Markup, Enum
+from miscutils import OneOrMany
 from iotools import HtmlGui
+
+from .draft import MessageDraft
+from .attribute import EquatableAttribute, ComparableAttribute, BooleanAttribute, EnumerableAttribute, OrderableAttributeMixin, ComparableName
 
 if TYPE_CHECKING:
     from .gmail import Gmail
@@ -19,12 +18,15 @@ if TYPE_CHECKING:
 
 
 class Message:
+    class Format(Enum):
+        FULL, METADATA, MINIMAL, RAW = "full", "metadata", "minimal", "raw"
+
     def __init__(self, resource: Dict_, gmail: Gmail) -> None:
         self.resource, self.gmail = resource, gmail
         self._set_attributes_from_resource()
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}(subject={repr(self.subject)}, from={repr(self.from_)}, to={repr(self.to)}, date='{self.date}')"
+        return f"{type(self).__name__}(subject={repr(self.subject)}, from={repr(str(self.from_))}, to={repr(str(self.to))}, date='{self.date}')"
 
     def __str__(self) -> str:
         return self.text
@@ -128,13 +130,15 @@ class Message:
         self._set_attributes_from_resource()
 
     def _set_attributes_from_resource(self) -> None:
-        self.id, self.thread_id = self.resource.id, self.resource.threadId
+        self.id, self.thread_id, self.size = self.resource.id, self.resource.threadId, self.resource.sizeEstimate
         self.date = DateTime.fromtimestamp(int(self.resource.internalDate)/1000)
 
-        self.headers = Dict_({item.name.lower(): item for item in self.resource.payload.headers})
-        self.subject = self._fetch_header_safely("subject")
-        self.from_ = self._fetch_header_safely("from")
-        self.to = self._fetch_header_safely("to")
+        self.headers = Dict_({item.name.lower(): item.get("value") for item in self.resource.payload.headers})
+        self.subject = self.headers.get("subject")
+        self.from_ = Contact.or_none(self.headers.get("from"))
+        self.to = Contact.or_none(self.headers.get("to"))
+        self.cc = Contact.or_none(self.headers.get("cc"))
+        self.bcc = Contact.or_none(self.headers.get("bcc"))
 
         self.text = Str(self._recursively_extract_parts_by_mimetype("text/plain")).trim.whitespace_runs(newlines=2)
         self.body = self._recursively_extract_parts_by_mimetype("text/html")
@@ -157,9 +161,6 @@ class Message:
         recurse(parts=self.resource.payload.parts if "parts" in self.resource.payload else [self.resource.payload])
         return "".join(output)
 
-    def _fetch_header_safely(self, header_name: str) -> str:
-        return Maybe(self.headers)[header_name].value.else_(None)
-
     def _decode_body(self, body: str) -> str:
         return base64.urlsafe_b64decode(body).decode("utf-8")
 
@@ -175,60 +176,78 @@ class Message:
     def from_id(cls, message_id: str, gmail: Gmail) -> Message:
         return cls(resource=Dict_(gmail.service.users().messages().get(userId="me", id=message_id, format="full").execute()), gmail=gmail)
 
+    class Attribute:
+        class From(EquatableAttribute, OrderableAttributeMixin):
+            name, attr = "from", "from_"
 
-class MessageDraft:
-    """A class representing a message that doesn't yet exist. All public methods allow chaining. At the end of the method chain call FluentMessage.send() to send the message."""
+        class To(EquatableAttribute, OrderableAttributeMixin):
+            name = attr = "to"
 
-    def __init__(self, gmail: Gmail, parent: Message = None) -> None:
-        self.gmail, self.parent = gmail, parent
-        self.mime = MIMEMultipart()
-        self._attachment = None  # type: str
+        class Cc(EquatableAttribute, OrderableAttributeMixin):
+            name = attr = "cc"
 
-    def subject(self, subject: str) -> MessageDraft:
-        """Set the subject of the message."""
-        self.mime["Subject"] = subject
-        return self
+        class Bcc(EquatableAttribute, OrderableAttributeMixin):
+            name = attr = "bcc"
 
-    def body(self, body: str) -> MessageDraft:
-        """Set the body of the message. The body should be an html string, but python newline and tab characters will be automatically converted to their html equivalents."""
-        self.mime.attach(MIMEText(body))
-        return self
+        class Subject(EquatableAttribute, OrderableAttributeMixin):
+            name = attr = "subject"
 
-    def from_(self, address: str) -> MessageDraft:
-        """Set the email address this message will appear to originate from."""
-        self.mime["From"] = address
-        return self
+        class FileName(EquatableAttribute):
+            name = "filename"
 
-    def to(self, contacts: Union[str, Collection[str]]) -> MessageDraft:
-        """Set the email address(es) (a single one or a collection of them) this message will be sent to. Email addresses can be provided either as strings or as contact objects."""
-        self.mime["To"] = self._parse_contacts(contacts=contacts)
-        return self
+        class Date(ComparableAttribute, OrderableAttributeMixin):
+            name, attr = ComparableName("date", greater="after", less="before"), "date"
 
-    def cc(self, contacts: Union[str, Collection[str]]) -> MessageDraft:
-        """Set the email address(es) (a single one or a collection of them) this message will be sent to. Email addresses can be provided either as strings or as contact objects."""
-        self.mime["Cc"] = self._parse_contacts(contacts=contacts)
-        return self
+            def convert_value(val: Any) -> str:
+                return str(DateTime.from_string(str(val)).to_date())
 
-    def attach(self, attachments: Union[PathLike, Collection[PathLike]]) -> MessageDraft:
-        """Attach a file or a collection of files to this message."""
-        for attachment in ([attachments] if isinstance(attachments, (str, os.PathLike)) else attachments):
-            self._attach_file(attachment)
-        return self
+        class Size(ComparableAttribute, OrderableAttributeMixin):
+            name, attr = ComparableName("size", greater="larger", less="smaller"), "size"
 
-    def send(self) -> bool:
-        """Send this message as it currently is."""
-        body = {"raw": base64.urlsafe_b64encode(self.mime.as_bytes()).decode()}
-        if self.parent is not None:
-            body["threadId"] = self.parent.thread_id
+        class Has(EnumerableAttribute):
+            name = "has"
 
-        message_id = Dict_(self.gmail.service.users().messages().send(userId="me", body=body).execute()).id
-        return Message.from_id(message_id=message_id, gmail=self.gmail)
+            class Attachment(BooleanAttribute):
+                name = "attachment"
 
-    def _parse_contacts(self, contacts: Union[str, Collection[str]]) -> List[str]:
-        return ", ".join(contacts) if is_non_string_iterable(contacts) else contacts
+            class YoutubeVideo(BooleanAttribute):
+                name = "youtube"
 
-    def _attach_file(self, path: PathLike) -> None:
-        file = File.from_pathlike(path)
-        attachment = MIMEApplication(file.path.read_bytes(), _subtype=file.extension)
-        attachment.add_header("Content-Disposition", "attachment", filename=file.name)
-        self.mime.attach(attachment)
+            class GoogleDrive(BooleanAttribute):
+                name = "drive"
+
+            class GoogleDocs(BooleanAttribute):
+                name = "document"
+
+            class GoogleSheets(BooleanAttribute):
+                name = "spreadsheet"
+
+            class GoogleSlides(BooleanAttribute):
+                name = "presentation"
+
+            class UserLabel(BooleanAttribute):
+                name = "userlabels"
+
+
+@total_ordering
+class Contact:
+    def __init__(self, contact: str) -> None:
+        self.raw = contact
+        self.name = Str(self.raw).slice.before("<").strip("""" \t\n"'""") or None
+        self.address = Str(self.raw).slice.after("<").slice.before(">").strip().lower() or self.raw.lower()
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({', '.join([f'{attr}={repr(val)}' for attr, val in self.__dict__.items() if not attr.startswith('_')])})"
+
+    def __str__(self) -> str:
+        return str(self.address)
+
+    def __eq__(self, other: Any) -> bool:
+        return self.address == other
+
+    def __lt__(self, other: Any) -> bool:
+        return self.address < other
+
+    @classmethod
+    def or_none(cls, contact_or_none: str = None) -> Optional[Contact]:
+        return None if contact_or_none is None else cls(contact_or_none)

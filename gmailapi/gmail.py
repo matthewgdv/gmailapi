@@ -1,21 +1,18 @@
 from __future__ import annotations
 
-import time
-from typing import List, Union
 import webbrowser
 
-from googleapiclient.discovery import build, BatchHttpRequest
+from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 
 from pathmagic import File
-from subtypes import Dict_
-from miscutils import OneOrMany
 from iotools import Config, Gui, widget
 
 from .proxy import SystemDefaults, LabelAccessor
 from .label import BaseLabel, Label, UserLabel, SystemLabel, Category
 from .message import Message, MessageDraft
+from .query import Query
 import gmailapi
 
 
@@ -27,6 +24,9 @@ class Gmail:
     class Constructors:
         BaseLabel, Label, UserLabel, SystemLabel, Category = BaseLabel, Label, UserLabel, SystemLabel, Category
         Message, MessageDraft = Message, MessageDraft
+
+    BATCH_SIZE = 25
+    BATCH_DELAY_SECONDS = 1
 
     DEFAULT_SCOPES = ["https://mail.google.com/"]
     ALL_SCOPES = [
@@ -50,7 +50,7 @@ class Gmail:
         self._ensure_credentials_are_valid()
 
         self.service = build('gmail', 'v1', credentials=self.credentials)
-        self.address = Dict_(self.service.users().getProfile(userId="me").execute()).emailAddress
+        self.address = self.service.users().getProfile(userId="me").execute()["emailAddress"]
 
         self.labels = LabelAccessor(gmail=self)
         self.labels._regenerate_label_tree()
@@ -67,25 +67,9 @@ class Gmail:
     def draft(self) -> MessageDraft:
         return self.Constructors.MessageDraft(gmail=self)
 
-    def messages(self, query: str = None, labels: Union[BaseLabel, List[BaseLabel]] = None, limit: int = 50, include_trash: bool = False, batch_size: int = 50, batch_delay: int = 1) -> List[Message]:
-        label_ids = None if labels is None else [label.id for label in OneOrMany(of_type=BaseLabel).to_list(labels)]
-        kwargs = {key: val for key, val in {"q": query, "labelIds": label_ids, "maxResults": limit, "includeSpamTrash": include_trash}.items() if val is not None}
-
-        response = Dict_(self.service.users().messages().list(userId="me", **kwargs).execute())
-        resources = response.get("messages", [])
-
-        kwargs["maxResults"] = 500 if limit is None else limit - len(resources)
-        while kwargs["maxResults"] > 0 and "nextPageToken" in response:
-            response = Dict_(self.service.users().messages().list(userId="me", pageToken=response.nextPageToken, **kwargs).execute())
-            resources += response.messages
-
-            kwargs["maxResults"] = 500 if limit is None else limit - len(resources)
-
-        message_ids = [resouce.id for resouce in resources]
-        if batch_size is None:
-            return [self.Constructors.Message.from_id(message_id=message_id, gmail=self) for message_id in message_ids]
-        else:
-            return sum([self._fetch_messages_in_batch(message_ids[index:index + batch_size], batch_delay=batch_delay) for index in range(0, len(message_ids), batch_size)], [])
+    @property
+    def messages(self) -> Query:
+        return Query(gmail=self)
 
     def create_label(self, name: str, label_list_visibility: str = "labelShow", message_list_visibility: set = "show", text_color: str = None, background_color: str = None) -> UserLabel:
         return self.Constructors.UserLabel.create(name=name, label_list_visibility=label_list_visibility, message_list_visibility=message_list_visibility, text_color=text_color, background_color=background_color, gmail=self)
@@ -117,19 +101,3 @@ class Gmail:
 
         gui.start()
         return file_select.state
-
-    def _fetch_messages_in_batch(self, message_ids: List[str], batch_delay: int = 1) -> List[Message]:
-        def append_to_list(response_id: str, response: dict, exception: Exception) -> None:
-            if exception is not None:
-                raise exception
-
-            resources.append(Dict_(response))
-
-        resources, batch = [], BatchHttpRequest(callback=append_to_list)
-        for message_id in message_ids:
-            batch.add(self.service.users().messages().get(userId="me", id=message_id))
-
-        batch.execute()
-        time.sleep(batch_delay)
-
-        return [self.Constructors.Message(resource=resource, gmail=self) for resource in resources]
