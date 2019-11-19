@@ -26,7 +26,7 @@ class ComparableName:
 
 
 class BaseAttributeMeta(type):
-    """The metaclass shared by all attributes, implementing operator functionality."""
+    """The metaclass shared by all attributes, implementing basic functionality."""
 
     name: str
 
@@ -54,7 +54,7 @@ class BooleanAttributeMeta(BaseAttributeMeta):
 
 
 class EnumerableAttributeMeta(BaseAttributeMeta):
-    """A metaclass for enumerative attributes which dynamically creates methods that resolve them to a boolean expression based on an enumeration."""
+    """A metaclass for enumerable attributes."""
 
     def __new__(mcs, name: str, bases: tuple, attributes: dict) -> Any:
         for val in attributes.values():
@@ -65,6 +65,8 @@ class EnumerableAttributeMeta(BaseAttributeMeta):
 
 
 class EquatableAttributeMeta(BaseAttributeMeta):
+    """A metaclass for equatable attributes."""
+
     def __hash__(cls) -> int:
         return id(cls)
 
@@ -76,6 +78,8 @@ class EquatableAttributeMeta(BaseAttributeMeta):
 
 
 class ComparableAttributeMeta(BaseAttributeMeta):
+    """A metaclass for comparable attributes."""
+
     def __gt__(cls, other: Any) -> ComparableAttribute:
         return cls(operator=Operator.GREATER, value=other)
 
@@ -139,13 +143,15 @@ class BooleanAttribute(BaseAttribute, metaclass=BooleanAttributeMeta):
 
 
 class EnumerableAttribute(BaseAttribute, metaclass=EnumerableAttributeMeta):
-    """A class for attributes to inherit from which always compare their value against a finite set of strings."""
+    """A class for attributes to inherit from which own any boolean attributes declared within their namespace."""
 
     def __str__(self) -> str:
         raise TypeError(f"Cannot compile attribute of type {type(self).__name__}.")
 
 
 class EquatableAttribute(BaseAttribute, metaclass=EquatableAttributeMeta):
+    """A class for attributes to inherit from which can be queried with '==' and '!='."""
+
     def right(self) -> str:
         if self.operator in (Operator.EQUAL, Operator.NOT_EQUAL):
             return f'"{self.value}"'
@@ -154,6 +160,8 @@ class EquatableAttribute(BaseAttribute, metaclass=EquatableAttributeMeta):
 
 
 class ComparableAttribute(BaseAttribute, metaclass=ComparableAttributeMeta):
+    """A class for attributes to inherit from which can be queried with '>' and '<'."""
+
     def left(self) -> str:
         if self.operator == Operator.GREATER:
             return self.name.greater
@@ -167,6 +175,8 @@ class ComparableAttribute(BaseAttribute, metaclass=ComparableAttributeMeta):
 
 
 class OrderableAttributeMixin:
+    """A mixin class for attributes to inherit from which maps to an attribute of Message objects, for use in order_by clauses."""
+
     attr: str
 
     @classmethod
