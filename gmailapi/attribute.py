@@ -146,13 +146,9 @@ class EnumerableAttribute(BaseAttribute, metaclass=EnumerableAttributeMeta):
 
 
 class EquatableAttribute(BaseAttribute, metaclass=EquatableAttributeMeta):
-    def __str__(self) -> str:
-        return f"{'-' if self.negated else ''}{self.name}:{self.value}"
-
     def right(self) -> str:
-        value = Str(self.value).re.split(r"\s")[0]
         if self.operator in (Operator.EQUAL, Operator.NOT_EQUAL):
-            return f'"{value}"'
+            return f'"{self.value}"'
         else:
             raise ValueError(f"Invalid operator: '{self.operator}' for attribute of type '{type(self).__name__}'.")
 
@@ -185,7 +181,6 @@ class OrderableAttributeMixin:
 class Expression:
     """A class representing a binary clause of where each side contains either an instanciated attribute or another expression."""
 
-    negated: bool
     parentheses = {
         ChainOperator.AND: ("(", ")"),
         ChainOperator.OR: ("{", "}")
