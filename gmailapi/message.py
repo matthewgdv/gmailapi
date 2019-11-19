@@ -26,7 +26,7 @@ class Message:
         self._set_attributes_from_resource()
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}(subject={repr(self.subject)}, from={repr(str(self.from_))}, to={repr(str(self.to))}, date='{self.date}')"
+        return f"{type(self).__name__}(subject={repr(self.subject)}, from={repr(str(self.from_))}, to={repr([str(contact) for contact in self.to])}, date='{self.date}')"
 
     def __str__(self) -> str:
         return self.text
@@ -136,9 +136,9 @@ class Message:
         self.headers = Dict_({item.name.lower(): item.get("value") for item in self.resource.payload.headers})
         self.subject = self.headers.get("subject")
         self.from_ = Contact.or_none(self.headers.get("from"))
-        self.to = Contact.or_none(self.headers.get("to"))
-        self.cc = Contact.or_none(self.headers.get("cc"))
-        self.bcc = Contact.or_none(self.headers.get("bcc"))
+        self.to = Contact.many_or_none(self.headers.get("to"))
+        self.cc = Contact.many_or_none(self.headers.get("cc"))
+        self.bcc = Contact.many_or_none(self.headers.get("bcc"))
 
         self.text = Str(self._recursively_extract_parts_by_mimetype("text/plain")).trim.whitespace_runs(newlines=2)
         self.body = self._recursively_extract_parts_by_mimetype("text/html")
@@ -251,3 +251,7 @@ class Contact:
     @classmethod
     def or_none(cls, contact_or_none: str = None) -> Optional[Contact]:
         return None if contact_or_none is None else cls(contact_or_none)
+
+    @classmethod
+    def many_or_none(cls, contacts_or_none: str = None) -> Optional[List[Contact]]:
+        return None if contacts_or_none is None else [cls.or_none(contact) for contact in contacts_or_none.split(",")]
