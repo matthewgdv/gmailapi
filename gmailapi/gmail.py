@@ -46,7 +46,7 @@ class Gmail:
         self.config = Config()
 
         self.token = self.config.appdata.new_dir("tokens").new_file("token", "pkl")
-        self.credentials = self.token.contents
+        self.credentials = self.token.content
         self._ensure_credentials_are_valid()
 
         self.service = build('gmail', 'v1', credentials=self.credentials)
@@ -85,13 +85,13 @@ class Gmail:
     def _ensure_credentials_are_valid(self) -> None:
         if self.credentials and self.credentials.expired and self.credentials.refresh_token:
             self.credentials.refresh(Request())
-            self.token.contents = self.credentials
+            self.token.content = self.credentials
 
         if not self.credentials or not self.credentials.valid:
             print("Before continuing, please create a new project with OAuth 2.0 credentials, or download your credentials from an existing project.")
             webbrowser.open("https://console.developers.google.com/")
             self.credentials = InstalledAppFlow.from_client_secrets_file(self._request_credentials_json(), self.DEFAULT_SCOPES).run_local_server(port=0)
-            self.token.contents = self.credentials
+            self.token.content = self.credentials
 
     def _request_credentials_json(self) -> File:
         with Gui(name="gmail", on_close=lambda: None) as gui:
