@@ -7,6 +7,7 @@ from subtypes import Dict_
 if TYPE_CHECKING:
     from .gmail import Gmail
     from .message import Message
+    from .query import Query
 
 
 class BaseLabel:
@@ -45,11 +46,12 @@ class BaseLabel:
     def children(self) -> List[BaseLabel]:
         return [label() for name, label in self.gmail.labels._id_mappings_[self.id]]
 
+    @property
+    def messages(self) -> Query:
+        return self.gmail.messages.labels(self)
+
     def create_child_label(self, name: str, label_list_visibility: str = "labelShow", message_list_visibility: set = "show", text_color: str = None, background_color: str = None) -> BaseLabel:
         return self.gmail.create_label(name=f"{self.name}/{name}", label_list_visibility=label_list_visibility, message_list_visibility=message_list_visibility, text_color=text_color, background_color=background_color)
-
-    def messages(self, query: str = None, limit: int = 25, include_trash: bool = False, batch_size: int = 50) -> List[Message]:
-        return self.gmail.messages(query=query, limit=limit, labels=self, include_trash=include_trash, batch_size=batch_size)
 
     def refresh(self) -> BaseLabel:
         self.resource = Dict_(self.gmail.service.users().labels().get(userId="me", id=self.id).execute())
