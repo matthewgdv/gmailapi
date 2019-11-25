@@ -95,7 +95,7 @@ class LabelAccessor(NameSpace):
         self._gmail_, self._id_mappings_, self._name_mappings_ = gmail, {}, {}
 
     def _regenerate_label_tree(self) -> LabelAccessor:
-        self._gmail_.expire(), self._clear()
+        self._gmail_.expire(), self()
 
         labels = Dict_(self._gmail_.service.users().labels().list(userId="me").execute()).labels
         real_labels = [label for label in labels if label.id not in SystemCategories._id_name_mappings]

@@ -62,7 +62,7 @@ class MessageDraft:
             body["threadId"] = self.parent.thread_id
 
         message_id = Dict_(self.gmail.service.users().messages().send(userId="me", body=body).execute()).id
-        return Message.from_id(message_id=message_id, gmail=self.gmail)
+        return self.gmail.Constructors.Message.from_id(message_id=message_id, gmail=self.gmail)
 
     def _parse_contacts(self, contacts: Union[str, Collection[str]]) -> List[str]:
         return ", ".join([str(contact) for contact in contacts]) if is_non_string_iterable(contacts) else str(contacts)
