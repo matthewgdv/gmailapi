@@ -67,6 +67,7 @@ class Query:
         return self
 
     def include_trash(self, include_trash: bool = True) -> Query:
+        """Set whether or not to include messages marked as spam or trash in the query result."""
         self._trash = include_trash
         return self
 

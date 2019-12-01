@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Union
 
-from subtypes import Enum, Str
+from subtypes import Enum
 
 
 class Operator(Enum):
@@ -121,9 +121,6 @@ class BooleanAttribute(BaseAttribute, metaclass=BooleanAttributeMeta):
     """A class for boolean attributes to inherit from."""
     owner: str
 
-    def convert_value(self, value: Any) -> str:
-        return value
-
     def prefix(self) -> str:
         if self.operator == Operator.EQUAL:
             truth = True
@@ -171,7 +168,10 @@ class ComparableAttribute(BaseAttribute, metaclass=ComparableAttributeMeta):
             raise ValueError(f"Invalid operator: '{self.operator}' for attribute of type '{type(self).__name__}'.")
 
     def right(self) -> str:
-        return Str(self.value).re.split(r"\s")[0]
+        return self.coerce(self.value)
+
+    def coerce(self, value: Any) -> str:
+        return value
 
 
 class OrderableAttributeMixin:

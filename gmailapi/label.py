@@ -50,7 +50,7 @@ class BaseLabel:
     def messages(self) -> Query:
         return self.gmail.messages.labels(self)
 
-    def create_child_label(self, name: str, label_list_visibility: str = "labelShow", message_list_visibility: set = "show", text_color: str = None, background_color: str = None) -> BaseLabel:
+    def create_child(self, name: str, label_list_visibility: str = "labelShow", message_list_visibility: set = "show", text_color: str = None, background_color: str = None) -> BaseLabel:
         return self.gmail.create_label(name=f"{self.name}/{name}", label_list_visibility=label_list_visibility, message_list_visibility=message_list_visibility, text_color=text_color, background_color=background_color)
 
     def refresh(self) -> BaseLabel:

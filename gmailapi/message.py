@@ -198,7 +198,7 @@ class Message:
         class Date(ComparableAttribute, OrderableAttributeMixin):
             name, attr = ComparableName("date", greater="after", less="before"), "date"
 
-            def convert_value(val: Any) -> str:
+            def coerce(val: Any) -> str:
                 return str(DateTime.from_string(str(val)).to_date())
 
         class Size(ComparableAttribute, OrderableAttributeMixin):

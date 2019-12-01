@@ -109,22 +109,21 @@ class LabelAccessor(NameSpace):
             if label.id in SystemLabels._id_name_mappings:
                 label.name = SystemLabels._id_name_mappings[label.id]
 
-            node, iterable = self, label.name.split('/') or [label.name]
+            node, iterable = self, [level for level in label.name.split('/') if level] or [label.name]
             for index, level in enumerate(iterable):
-                if level:
-                    if level in node:
-                        node = node[level]
+                if level in node:
+                    node = node[level]
+                else:
+                    if label.id in self._id_mappings_:
+                        proxy = self._id_mappings_[label.id]
+                        proxy._entity_name_, proxy._parent_ = label.name, node if node is not self else None
+                        proxy()
                     else:
-                        if label.id in self._id_mappings_:
-                            proxy = self._id_mappings_[label.id]
-                            proxy._entity_name_, proxy._parent_ = label.name, node if node is not self else None
-                            proxy._clear()
-                        else:
-                            proxy = LabelProxy(entity_id=label.id, entity_name=label.name, gmail=self._gmail_, parent=node if node is not self else None)
+                        proxy = LabelProxy(entity_id=label.id, entity_name=label.name, gmail=self._gmail_, parent=node if node is not self else None)
 
-                        stem = level if index + 1 == len(iterable) else "/".join(iterable[index:])
-                        node[stem] = proxy
-                        break
+                    stem = level if index + 1 == len(iterable) else "/".join(iterable[index:])
+                    node[stem] = proxy
+                    break
 
         return self
 
