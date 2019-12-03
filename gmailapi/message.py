@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from functools import total_ordering
 from typing import Any, List, Union, Collection, Optional, TYPE_CHECKING
-import base64
+from html import unescape
+
+import mailparser
 
 from pathmagic import File, Dir, PathLike
-from subtypes import Dict_, DateTime, Str, Markup, Enum
-from miscutils import OneOrMany
+from subtypes import Dict_, DateTime, Markup, Enum
+from miscutils import OneOrMany, Base64
 from iotools import HtmlGui
 
 from .draft import MessageDraft
@@ -46,7 +47,7 @@ class Message:
             raise TypeError(f"Cannot test '{type(other).__name__}' object for membership in a '{type(self).__name__}' object. Must be type '{BaseLabel.__name__}'.")
 
     def _repr_html_(self) -> str:
-        return f"<strong><mark>{self.subject}</mark></strong><br><br>{self.body}"
+        return f"<strong><mark>{self.subject}</mark></strong><br><br>{self.body.html}"
 
     @property
     def markup(self) -> Markup:
@@ -58,17 +59,7 @@ class Message:
         HtmlGui(name=self.subject, text=self.body).start()
 
     def save_attachments_to(self, directory: PathLike) -> List[File]:
-        target_dir = Dir.from_pathlike(directory)
-        files = []
-        for part in (self.resource.payload.parts if "parts" in self.resource.payload else [self.resource.payload]):
-            if part.filename:
-                data = self.gmail.service.users().messages().attachments().get(userId="me", messageId=self.id, id=part.body.attachmentId).execute()["data"]
-
-                file = target_dir.new_file(part.filename)
-                file.path.write_bytes(base64.urlsafe_b64decode(data.encode("utf-8")))
-                files.append(file)
-
-        return files
+        return self._recursively_append_attachments_to_list(node=self.resource.payload, target_dir=Dir.from_pathlike(directory), output=[])
 
     def change_category_to(self, category: Category) -> Message:
         if isinstance(category, self.gmail.Constructors.Category):
@@ -126,22 +117,22 @@ class Message:
         return MessageDraft(gmail=self.gmail, parent=self).subject(f"FWD: {self.subject}")
 
     def refresh(self) -> None:
-        self.resource = Dict_(self.gmail.service.users().messages().get(userId="me", id=self.id, format="full").execute())
+        self.resource = Dict_(self.gmail.service.users().messages().get(userId="me", id=self.id, format="raw").execute())
         self._set_attributes_from_resource()
 
     def _set_attributes_from_resource(self) -> None:
         self.id, self.thread_id, self.size = self.resource.id, self.resource.threadId, self.resource.sizeEstimate
         self.date = DateTime.fromtimestamp(int(self.resource.internalDate)/1000)
 
-        self.headers = Dict_({item.name.lower(): item.get("value") for item in self.resource.payload.headers})
-        self.subject = self.headers.get("subject")
-        self.from_ = Contact.or_none(self.headers.get("from"))
-        self.to = Contact.many_or_none(self.headers.get("to"))
-        self.cc = Contact.many_or_none(self.headers.get("cc"))
-        self.bcc = Contact.many_or_none(self.headers.get("bcc"))
+        self.parsed = mailparser.parse_from_bytes(Base64.from_b64(self.resource.raw).bytes)
 
-        self.text = Str(self._recursively_extract_parts_by_mimetype("text/plain")).trim.whitespace_runs(newlines=2)
-        self.body = self._recursively_extract_parts_by_mimetype("text/html")
+        self.subject = self.parsed.subject
+        self.from_ = self.gmail.Constructors.Contact.or_none(self.parsed.from_)
+        self.to = self.gmail.Constructors.Contact.many_or_none(self.parsed.to)
+        self.cc = self.gmail.Constructors.Contact.many_or_none(self.parsed.cc)
+        self.bcc = self.gmail.Constructors.Contact.many_or_none(self.parsed.bcc)
+
+        self.body = Body(text="\n\n".join(self.parsed.text_plain), html="\n\n".join(self.parsed.text_html))
 
         all_labels = [self.gmail.labels._id_mappings_[label_id]() for label_id in self.resource.get("labelIds", [])]
         self.labels = {label for label in all_labels if isinstance(label, self.gmail.Constructors.Label)}
@@ -162,7 +153,7 @@ class Message:
         return "".join(output)
 
     def _decode_body(self, body: str) -> str:
-        return base64.urlsafe_b64decode(body).decode("utf-8")
+        return Base64.from_b64(body).to_utf8()
 
     def _parse_datetime(self, datetime: str) -> DateTime:
         if datetime is None:
@@ -172,9 +163,23 @@ class Message:
             clean = " ".join(datetime.split(" ")[:5])
             return DateTime.strptime(clean, f"{Code.WEEKDAY.SHORT}, {Code.DAY.NUM} {Code.MONTH.SHORT} {Code.YEAR.WITH_CENTURY} {Code.HOUR.H24}:{Code.MINUTE.NUM}:{Code.SECOND.NUM}")
 
+    def _recursively_append_attachments_to_list(self, node: Dict_, target_dir: PathLike, output: list = None) -> list:
+        if "filename" in node and node.filename:
+            data = self.gmail.service.users().messages().attachments().get(userId="me", messageId=self.id, id=node.body.attachmentId).execute()["data"]
+
+            file = target_dir.new_file(node.filename)
+            file.path.write_bytes(Base64.from_b64(data).bytes)
+            output.append(file)
+
+        if "parts" in node:
+            for part in node.parts:
+                self._recursively_append_attachments_to_list(node=part, target_dir=target_dir, output=output)
+
+        return output
+
     @classmethod
     def from_id(cls, message_id: str, gmail: Gmail) -> Message:
-        return cls(resource=Dict_(gmail.service.users().messages().get(userId="me", id=message_id, format="full").execute()), gmail=gmail)
+        return cls(resource=Dict_(gmail.service.users().messages().get(userId="me", id=message_id, format="raw").execute()), gmail=gmail)
 
     class Attribute:
         class From(EquatableAttribute, OrderableAttributeMixin):
@@ -229,29 +234,39 @@ class Message:
                 name = "userlabels"
 
 
-@total_ordering
 class Contact:
-    def __init__(self, contact: str) -> None:
-        self.raw = contact
-        self.name = Str(self.raw).slice.before("<").strip("""" \t\n"'""") or None
-        self.address = Str(self.raw).slice.after("<").slice.before(">").strip().lower() or self.raw.lower()
+    def __init__(self, name: str, address: str) -> None:
+        self.name, self.address = name or None, address
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({', '.join([f'{attr}={repr(val)}' for attr, val in self.__dict__.items() if not attr.startswith('_')])})"
 
     def __str__(self) -> str:
-        return str(self.address)
+        return self.address
 
     def __eq__(self, other: Any) -> bool:
-        return self.address == other
-
-    def __lt__(self, other: Any) -> bool:
-        return self.address < other
+        return str(self) == str(other)
 
     @classmethod
-    def or_none(cls, contact_or_none: str = None) -> Optional[Contact]:
-        return None if contact_or_none is None else cls(contact_or_none)
+    def or_none(cls, contact_or_none: list) -> Optional[Contact]:
+        if contact_or_none:
+            from_, = contact_or_none
+            name, address = from_
+            return cls(name=name, address=address)
+        else:
+            return None
 
     @classmethod
     def many_or_none(cls, contacts_or_none: str = None) -> Optional[List[Contact]]:
-        return None if contacts_or_none is None else [cls.or_none(contact) for contact in contacts_or_none.split(",")]
+        return [cls(name=name, address=address) for name, address in contacts_or_none] if contacts_or_none else None
+
+
+class Body:
+    def __init__(self, text: str = None, html: str = None) -> None:
+        self.text, self.html = text, unescape(html)
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({', '.join([f'{attr}={repr(val)}' for attr, val in self.__dict__.items() if not attr.startswith('_')])})"
+
+    def __str__(self) -> str:
+        return self.text

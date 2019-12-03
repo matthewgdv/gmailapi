@@ -112,7 +112,7 @@ class Query:
 
         timer, resources, batch = Timer(), [], BatchHttpRequest(callback=append_to_list)
         for message_id in message_ids:
-            batch.add(self._gmail.service.users().messages().get(userId="me", id=message_id))
+            batch.add(self._gmail.service.users().messages().get(userId="me", id=message_id, format="raw"))
 
         batch.execute()
         messages = [self._gmail.Constructors.Message(resource=resource, gmail=self._gmail) for resource in resources]

@@ -11,7 +11,7 @@ from iotools import Config, Gui, widget
 
 from .proxy import SystemDefaults, LabelAccessor
 from .label import BaseLabel, Label, UserLabel, SystemLabel, Category
-from .message import Message, MessageDraft
+from .message import Message, MessageDraft, Contact
 from .query import Query
 import gmailapi
 
@@ -23,7 +23,7 @@ class Config(Config):
 class Gmail:
     class Constructors:
         BaseLabel, Label, UserLabel, SystemLabel, Category = BaseLabel, Label, UserLabel, SystemLabel, Category
-        Message, MessageDraft = Message, MessageDraft
+        Message, MessageDraft, Contact = Message, MessageDraft, Contact
 
     BATCH_SIZE = 25
     BATCH_DELAY_SECONDS = 1

@@ -2,18 +2,16 @@ from __future__ import annotations
 
 import os
 from typing import List, Union, Collection, TYPE_CHECKING
-import base64
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.application import MIMEApplication
+from html import escape, unescape
+
+import emails
 
 from pathmagic import File, PathLike
-from subtypes import Dict_
-from miscutils import is_non_string_iterable
+from miscutils import OneOrMany, Base64
 
 if TYPE_CHECKING:
     from .gmail import Gmail
-    from .message import Message
+    from .message import Message, Contact
 
 
 class MessageDraft:
@@ -21,54 +19,77 @@ class MessageDraft:
 
     def __init__(self, gmail: Gmail, parent: Message = None) -> None:
         self.gmail, self.parent = gmail, parent
-        self.mime = MIMEMultipart()
-        self._attachment = None  # type: str
+        self._subject = self._html = self._text = self._from = self._to = self._cc = self._bcc = None  # type: str
+        self._attachments: List[File] = []
 
     def subject(self, subject: str) -> MessageDraft:
         """Set the subject of the message."""
-        self.mime["Subject"] = subject
+        self._subject = subject
         return self
 
-    def body(self, body: str) -> MessageDraft:
-        """Set the body of the message. The body should be an html string, but python newline and tab characters will be automatically converted to their html equivalents."""
-        self.mime.attach(MIMEText(body))
+    def html(self, html: str) -> MessageDraft:
+        """Set the html body of the message. This should be valid html string, though special html characters will be escaped. If no text is provided, it will be generated from this html by stripping away all tags, unescaping, andconverting html whitespace characters to utf-8."""
+        self._html = html
+        return self
+
+    def text(self, text: str) -> MessageDraft:
+        """Set the text body of the message. If no html body is provided, it will be generated from this text, with python whitespace characters automatically converted to their html equivalents."""
+        self._text = text
         return self
 
     def from_(self, address: str) -> MessageDraft:
         """Set the email address this message will appear to originate from."""
-        self.mime["From"] = str(address)
+        self._from = address
         return self
 
-    def to(self, contacts: Union[str, Collection[str]]) -> MessageDraft:
+    def to(self, contacts: Union[Union[Contact, str], Collection[Union[Contact, str]]]) -> MessageDraft:
         """Set the email address(es) (a single one or a collection of them) this message will be sent to. Email addresses can be provided either as strings or as contact objects."""
-        self.mime["To"] = self._parse_contacts(contacts=contacts)
+        self._to = self._parse_contacts(contacts=contacts)
         return self
 
-    def cc(self, contacts: Union[str, Collection[str]]) -> MessageDraft:
-        """Set the email address(es) (a single one or a collection of them) this message will be sent to. Email addresses can be provided either as strings or as contact objects."""
-        self.mime["Cc"] = self._parse_contacts(contacts=contacts)
+    def cc(self, contacts: Union[Union[Contact, str], Collection[Union[Contact, str]]]) -> MessageDraft:
+        """Set the email address(es) (a single one or a collection of them) this message will be CCd to. Email addresses can be provided either as strings or as contact objects."""
+        self._cc = self._parse_contacts(contacts=contacts)
+        return self
+
+    def bcc(self, contacts: Union[Union[Contact, str], Collection[Union[Contact, str]]]) -> MessageDraft:
+        """Set the email address(es) (a single one or a collection of them) this message will be BCCd to. Email addresses can be provided either as strings or as contact objects."""
+        self._bcc = self._parse_contacts(contacts=contacts)
         return self
 
     def attach(self, attachments: Union[PathLike, Collection[PathLike]]) -> MessageDraft:
         """Attach a file or a collection of files to this message."""
-        for attachment in ([attachments] if isinstance(attachments, (str, os.PathLike)) else attachments):
-            self._attach_file(attachment)
+
+        temp = OneOrMany(of_type=(str, os.PathLike)).to_list(attachments)
+        self._attachments += [File.from_pathlike(file) for file in temp]
         return self
 
     def send(self) -> bool:
         """Send this message as it currently is."""
-        body = {"raw": base64.urlsafe_b64encode(self.mime.as_bytes()).decode()}
+        message_id = self.gmail.service.users().messages().send(userId="me", body=self._prepare_message_body()).execute()["id"]
+        return self.gmail.Constructors.Message.from_id(message_id=message_id, gmail=self.gmail)
+
+    def _prepare_message_body(self) -> dict:
+        if self._html:
+            html = self._html
+            if not self._text:
+                plain = unescape(self._html)
+
+        if self._text:
+            plain = self._text
+            if not self._html:
+                html = f"<pre>{escape(self._text)}</pre>"
+
+        msg = emails.Message(subject=self._subject, mail_from=self._from, mail_to=self._to, html=html, text=plain, cc=self._cc, bcc=self._bcc, headers=None, charset="utf-8")
+        for attachment in self._attachments:
+            msg.attach(filename=attachment.name, data=attachment)
+
+        body = {"raw": Base64(raw_bytes=msg.build_message().as_bytes()).to_b64()}
+
         if self.parent is not None:
             body["threadId"] = self.parent.thread_id
 
-        message_id = Dict_(self.gmail.service.users().messages().send(userId="me", body=body).execute()).id
-        return self.gmail.Constructors.Message.from_id(message_id=message_id, gmail=self.gmail)
+        return body
 
     def _parse_contacts(self, contacts: Union[str, Collection[str]]) -> List[str]:
-        return ", ".join([str(contact) for contact in contacts]) if is_non_string_iterable(contacts) else str(contacts)
-
-    def _attach_file(self, path: PathLike) -> None:
-        file = File.from_pathlike(path)
-        attachment = MIMEApplication(file.path.read_bytes(), _subtype=file.extension)
-        attachment.add_header("Content-Disposition", "attachment", filename=file.name)
-        self.mime.attach(attachment)
+        return ", ".join([str(contact) for contact in OneOrMany(of_type=(self.gmail.Constructors.Contact, str)).to_list(contacts)])
