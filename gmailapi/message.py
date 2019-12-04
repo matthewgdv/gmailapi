@@ -6,7 +6,7 @@ from html import unescape
 import mailparser
 
 from pathmagic import File, Dir, PathLike
-from subtypes import Dict_, DateTime, Markup, Enum
+from subtypes import Dict_, BaseList, DateTime, Markup, Enum
 from miscutils import OneOrMany, Base64
 from iotools import HtmlGui
 
@@ -133,6 +133,7 @@ class Message:
         self.bcc = self.gmail.Constructors.Contact.many_or_none(self.parsed.bcc)
 
         self.body = Body(text="\n\n".join(self.parsed.text_plain), html="\n\n".join(self.parsed.text_html))
+        self.attachments = Attachments([Attachment(name=attachment["filename"], payload=attachment["payload"]) for attachment in self.parsed.attachments])
 
         all_labels = [self.gmail.labels._id_mappings_[label_id]() for label_id in self.resource.get("labelIds", [])]
         self.labels = {label for label in all_labels if isinstance(label, self.gmail.Constructors.Label)}
@@ -270,3 +271,26 @@ class Body:
 
     def __str__(self) -> str:
         return self.text
+
+
+class Attachments(BaseList):
+    def save_to(self, folder: PathLike) -> List[File]:
+        return [attachment.save_to(folder) for attachment in self]
+
+
+class Attachment:
+    def __init__(self, name: str, payload: str) -> None:
+        self.name, self.payload = name, payload
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}(name={repr(self.name)})"
+
+    def save_to(self, folder: PathLike) -> File:
+        return self._save(Dir.from_pathlike(folder).new_file(self.name))
+
+    def save_as(self, file: PathLike) -> File:
+        return self._save(File.from_pathlike(file))
+
+    def _save(self, file: PathLike) -> File:
+        file.path.write_bytes(Base64.from_b64(self.payload).bytes)
+        return file
