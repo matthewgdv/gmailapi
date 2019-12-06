@@ -46,9 +46,6 @@ class Message:
         else:
             raise TypeError(f"Cannot test '{type(other).__name__}' object for membership in a '{type(self).__name__}' object. Must be type '{BaseLabel.__name__}'.")
 
-    def _repr_html_(self) -> str:
-        return f"<strong><mark>{self.subject}</mark></strong><br><br>{self.body.html}"
-
     @property
     def markup(self) -> Markup:
         """A property controlling access to the subtypes.Markup object corresponding to this message's html body."""
@@ -264,13 +261,16 @@ class Contact:
 
 class Body:
     def __init__(self, text: str = None, html: str = None) -> None:
-        self.text, self.html = text, unescape(html)
+        self.text, self.html, self.raw = text, unescape(html), html
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({', '.join([f'{attr}={repr(val)}' for attr, val in self.__dict__.items() if not attr.startswith('_')])})"
 
     def __str__(self) -> str:
         return self.text
+
+    def _repr_html_(self) -> str:
+        return self.raw
 
 
 class Attachments(BaseList):

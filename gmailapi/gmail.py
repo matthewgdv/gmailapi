@@ -17,7 +17,7 @@ import gmailapi
 
 
 class Config(Config):
-    app_name = gmailapi.__name__
+    name = gmailapi.__name__
 
 
 class Gmail:
@@ -45,7 +45,7 @@ class Gmail:
     def __init__(self) -> None:
         self.config = Config()
 
-        self.token = self.config.appdata.new_dir("tokens").new_file("token", "pkl")
+        self.token = self.config.folder.new_dir("tokens").new_file("token", "pkl")
         self.credentials = self.token.content
         self._ensure_credentials_are_valid()
 

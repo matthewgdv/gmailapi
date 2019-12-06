@@ -6,6 +6,7 @@ from html import escape, unescape
 
 import emails
 
+from subtypes import Markup, Str
 from pathmagic import File, PathLike
 from miscutils import OneOrMany, Base64
 
@@ -73,7 +74,7 @@ class MessageDraft:
         if self._html:
             html = self._html
             if not self._text:
-                plain = unescape(self._html)
+                plain = self._html_to_plaintext(self._html)
 
         if self._text:
             plain = self._text
@@ -92,4 +93,12 @@ class MessageDraft:
         return body
 
     def _parse_contacts(self, contacts: Union[str, Collection[str]]) -> List[str]:
-        return ", ".join([str(contact) for contact in OneOrMany(of_type=(self.gmail.Constructors.Contact, str)).to_list(contacts)])
+        return [str(contact) for contact in OneOrMany(of_type=(self.gmail.Constructors.Contact, str)).to_list(contacts)]
+
+    def _html_to_plaintext(self, html: str) -> str:
+        markup = Markup(unescape(self._html.replace("<br>", "\n")))
+        for meta in ["base", "head", "link", "meta", "style", "title"]:
+            for tag in markup.find_all(meta):
+                tag.extract()
+
+        return Str(markup.text).trim.whitespace_runs(newlines=2)
