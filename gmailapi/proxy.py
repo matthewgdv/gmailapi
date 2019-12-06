@@ -4,10 +4,9 @@ from typing import TYPE_CHECKING
 
 from subtypes import Dict_, NameSpace
 
-from .label import Category, SystemLabel, UserLabel, Label, BaseLabel
-
 if TYPE_CHECKING:
     from .gmail import Gmail
+    from .label import Category, Label, BaseLabel
 
 
 class SystemLabels:
@@ -141,7 +140,8 @@ class BaseProxy(NameSpace):
 class LabelProxy(BaseProxy):
     def __call__(self) -> Label:
         if self._entity_ is None:
-            self._entity_ = (SystemLabel if self._entity_id_ in SystemLabels._id_name_mappings else UserLabel)(label_id=self._entity_id_, gmail=self._gmail_)
+            constructor = self._gmail_.constructors.SystemLabel if self._entity_id_ in SystemLabels._id_name_mappings else self._gmail_.constructors.UserLabel
+            self._entity_ = constructor(label_id=self._entity_id_, gmail=self._gmail_)
 
         return self._entity_
 
@@ -149,6 +149,6 @@ class LabelProxy(BaseProxy):
 class CategoryProxy(BaseProxy):
     def __call__(self) -> Category:
         if self._entity_ is None:
-            self._entity_ = Category(label_id=self._entity_id_, gmail=self._gmail_)
+            self._entity_ = self._gmail_.constructors.Category(label_id=self._entity_id_, gmail=self._gmail_)
 
         return self._entity_

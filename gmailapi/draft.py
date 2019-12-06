@@ -68,7 +68,7 @@ class MessageDraft:
     def send(self) -> bool:
         """Send this message as it currently is."""
         message_id = self.gmail.service.users().messages().send(userId="me", body=self._prepare_message_body()).execute()["id"]
-        return self.gmail.Constructors.Message.from_id(message_id=message_id, gmail=self.gmail)
+        return self.gmail.constructors.Message.from_id(message_id=message_id, gmail=self.gmail)
 
     def _prepare_message_body(self) -> dict:
         if self._html:
@@ -93,7 +93,7 @@ class MessageDraft:
         return body
 
     def _parse_contacts(self, contacts: Union[str, Collection[str]]) -> List[str]:
-        return [str(contact) for contact in OneOrMany(of_type=(self.gmail.Constructors.Contact, str)).to_list(contacts)]
+        return [str(contact) for contact in OneOrMany(of_type=(self.gmail.constructors.Contact, str)).to_list(contacts)]
 
     def _html_to_plaintext(self, html: str) -> str:
         markup = Markup(unescape(self._html.replace("<br>", "\n")))

@@ -11,7 +11,7 @@ from iotools import Config, Gui, widget
 
 from .proxy import SystemDefaults, LabelAccessor
 from .label import BaseLabel, Label, UserLabel, SystemLabel, Category
-from .message import Message, MessageDraft, Contact
+from .message import Message, MessageDraft, Contact, Body, Attachments, Attachment
 from .query import Query
 import gmailapi
 
@@ -23,7 +23,10 @@ class Config(Config):
 class Gmail:
     class Constructors:
         BaseLabel, Label, UserLabel, SystemLabel, Category = BaseLabel, Label, UserLabel, SystemLabel, Category
-        Message, MessageDraft, Contact = Message, MessageDraft, Contact
+        Message, MessageDraft = Message, MessageDraft
+        Contact, Body, Attachments, Attachment = Contact, Body, Attachments, Attachment
+
+    constructors = Constructors()
 
     BATCH_SIZE = 25
     BATCH_DELAY_SECONDS = 1
@@ -65,14 +68,14 @@ class Gmail:
 
     @property
     def draft(self) -> MessageDraft:
-        return self.Constructors.MessageDraft(gmail=self)
+        return self.constructors.MessageDraft(gmail=self)
 
     @property
     def messages(self) -> Query:
         return Query(gmail=self)
 
     def create_label(self, name: str, label_list_visibility: str = "labelShow", message_list_visibility: set = "show", text_color: str = None, background_color: str = None) -> UserLabel:
-        return self.Constructors.UserLabel.create(name=name, label_list_visibility=label_list_visibility, message_list_visibility=message_list_visibility, text_color=text_color, background_color=background_color, gmail=self)
+        return self.constructors.UserLabel.create(name=name, label_list_visibility=label_list_visibility, message_list_visibility=message_list_visibility, text_color=text_color, background_color=background_color, gmail=self)
 
     def label_from_name(self, label_name: str) -> BaseLabel:
         return self.labels._name_mappings_[label_name]()

@@ -59,21 +59,21 @@ class Message:
         return self._recursively_append_attachments_to_list(node=self.resource.payload, target_dir=Dir.from_pathlike(directory), output=[])
 
     def change_category_to(self, category: Category) -> Message:
-        if isinstance(category, self.gmail.Constructors.Category):
+        if isinstance(category, self.gmail.constructors.Category):
             self.gmail.service.users().messages().modify(userId="me", id=self.id, body={"removeLabelIds": self.category.id, "addLabelIds": category.id}).execute()
             self.refresh()
         else:
-            raise TypeError(f"Argument to '{self.change_category_to.__name__}' must be of type '{self.gmail.Constructors.Category.__name__}', not '{type(category).__name__}'.")
+            raise TypeError(f"Argument to '{self.change_category_to.__name__}' must be of type '{self.gmail.constructors.Category.__name__}', not '{type(category).__name__}'.")
 
         return self
 
     def add_labels(self, labels: Union[Label, Collection[Label]]) -> Message:
-        self.gmail.service.users().messages().modify(userId="me", id=self.id, body={"addLabelIds": OneOrMany(of_type=self.gmail.Constructors.Label).to_list(labels)}).execute()
+        self.gmail.service.users().messages().modify(userId="me", id=self.id, body={"addLabelIds": OneOrMany(of_type=self.gmail.constructors.Label).to_list(labels)}).execute()
         self.refresh()
         return self
 
     def remove_labels(self, labels: Union[Label, Collection[Label]]) -> Message:
-        self.gmail.service.users().messages().modify(userId="me", id=self.id, body={"removeLabelIds": OneOrMany(of_type=self.gmail.Constructors.Label).to_list(labels)}).execute()
+        self.gmail.service.users().messages().modify(userId="me", id=self.id, body={"removeLabelIds": OneOrMany(of_type=self.gmail.constructors.Label).to_list(labels)}).execute()
         self.refresh()
         return self
 
@@ -124,17 +124,17 @@ class Message:
         self.parsed = mailparser.parse_from_bytes(Base64.from_b64(self.resource.raw).bytes)
 
         self.subject = self.parsed.subject
-        self.from_ = self.gmail.Constructors.Contact.or_none(self.parsed.from_)
-        self.to = self.gmail.Constructors.Contact.many_or_none(self.parsed.to)
-        self.cc = self.gmail.Constructors.Contact.many_or_none(self.parsed.cc)
-        self.bcc = self.gmail.Constructors.Contact.many_or_none(self.parsed.bcc)
+        self.from_ = self.gmail.constructors.Contact.or_none(self.parsed.from_)
+        self.to = self.gmail.constructors.Contact.many_or_none(self.parsed.to)
+        self.cc = self.gmail.constructors.Contact.many_or_none(self.parsed.cc)
+        self.bcc = self.gmail.constructors.Contact.many_or_none(self.parsed.bcc)
 
         self.body = Body(text="\n\n".join(self.parsed.text_plain), html="\n\n".join(self.parsed.text_html))
         self.attachments = Attachments([Attachment(name=attachment["filename"], payload=attachment["payload"]) for attachment in self.parsed.attachments])
 
         all_labels = [self.gmail.labels._id_mappings_[label_id]() for label_id in self.resource.get("labelIds", [])]
-        self.labels = {label for label in all_labels if isinstance(label, self.gmail.Constructors.Label)}
-        self.category = OneOrMany(of_type=self.gmail.Constructors.Category).to_one_or_none([label for label in all_labels if isinstance(label, self.gmail.Constructors.Category)])
+        self.labels = {label for label in all_labels if isinstance(label, self.gmail.constructors.Label)}
+        self.category = OneOrMany(of_type=self.gmail.constructors.Category).to_one_or_none([label for label in all_labels if isinstance(label, self.gmail.constructors.Category)])
 
     def _recursively_extract_parts_by_mimetype(self, mime_type: str) -> str:
         output = []

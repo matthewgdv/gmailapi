@@ -27,7 +27,7 @@ class BaseLabel:
     def __contains__(self, other: Union[BaseLabel, Message]) -> bool:
         if isinstance(other, BaseLabel):
             return other.name in self.name
-        elif isinstance(other, self.gmail.Constructors.Category):
+        elif isinstance(other, self.gmail.constructors.Category):
             return self in other.labels or self == other.category
         else:
             raise TypeError(f"Cannot test '{type(other).__name__}' object for membership in a '{type(self).__name__}' object. Must be type '{BaseLabel.__name__}' or '{Message.__name__}'.")

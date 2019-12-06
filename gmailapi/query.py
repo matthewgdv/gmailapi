@@ -75,7 +75,7 @@ class Query:
         """Execute this query and return the results."""
         message_ids = self._fetch_message_ids()
         if self._gmail.BATCH_SIZE is None:
-            messages = [self._gmail.Constructors.Message.from_id(message_id=message_id, gmail=self._gmail) for message_id in message_ids]
+            messages = [self._gmail.constructors.Message.from_id(message_id=message_id, gmail=self._gmail) for message_id in message_ids]
         else:
             messages = sum([self._fetch_messages_in_batch(message_ids[index:index + self._gmail.BATCH_SIZE]) for index in range(0, len(message_ids), self._gmail.BATCH_SIZE)], [])
 
@@ -115,7 +115,7 @@ class Query:
             batch.add(self._gmail.service.users().messages().get(userId="me", id=message_id, format="raw"))
 
         batch.execute()
-        messages = [self._gmail.Constructors.Message(resource=resource, gmail=self._gmail) for resource in resources]
+        messages = [self._gmail.constructors.Message(resource=resource, gmail=self._gmail) for resource in resources]
 
         while timer < self._gmail.BATCH_DELAY_SECONDS:
             time.sleep(0.05)
@@ -171,17 +171,17 @@ class BulkAction:
         return BulkActionContext(action=lambda results: self._gmail.service.users().messages().batchDelete(userId="me", body={"ids": results}))
 
     def change_category_to(self, category: Category) -> BulkActionContext:
-        if isinstance(category, self.gmail.Constructors.Category):
+        if isinstance(category, self.gmail.constructors.Category):
             return BulkActionContext(action=lambda results: self._gmail.service.users().messages().batchModify(userId="me", body={"ids": results, "addLabelIds": [category.id]}))
         else:
-            raise TypeError(f"Argument to '{self.change_category_to.__name__}' must be of type '{self.gmail.Constructors.Category.__name__}', not '{type(category).__name__}'.")
+            raise TypeError(f"Argument to '{self.change_category_to.__name__}' must be of type '{self.gmail.constructors.Category.__name__}', not '{type(category).__name__}'.")
 
     def add_labels(self, labels: Union[Label, Collection[Label]]) -> BulkActionContext:
-        label_ids = OneOrMany(of_type=self.gmail.Constructors.Label).to_list(labels)
+        label_ids = OneOrMany(of_type=self.gmail.constructors.Label).to_list(labels)
         return BulkActionContext(action=lambda results: self._gmail.service.users().messages().batchModify(userId="me", body={"ids": results, "addLabelIds": label_ids}))
 
     def remove_labels(self, labels: Union[Label, Collection[Label]]) -> BulkActionContext:
-        label_ids = OneOrMany(of_type=self.gmail.Constructors.Label).to_list(labels)
+        label_ids = OneOrMany(of_type=self.gmail.constructors.Label).to_list(labels)
         return BulkActionContext(action=lambda results: self._gmail.service.users().messages().batchModify(userId="me", body={"ids": results, "removeLabelIds": label_ids}))
 
     def mark_is_read(self, is_read: bool = True) -> BulkActionContext:
