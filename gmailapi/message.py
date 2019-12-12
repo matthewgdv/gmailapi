@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, List, Union, Collection, Optional, TYPE_CHECKING
+from typing import Any, List, Tuple, Union, Collection, Optional, TYPE_CHECKING
 from html import unescape
 
 import mailparser
 
 from pathmagic import File, Dir, PathLike
-from subtypes import Dict_, BaseList, DateTime, Markup, Enum
+from subtypes import Dict_, BaseList, DateTime, Markup
 from miscutils import OneOrMany, Base64
 from iotools import HtmlGui
 
@@ -19,9 +19,6 @@ if TYPE_CHECKING:
 
 
 class Message:
-    class Format(Enum):
-        FULL, METADATA, MINIMAL, RAW = "full", "metadata", "minimal", "raw"
-
     def __init__(self, resource: Dict_, gmail: Gmail) -> None:
         self.resource, self.gmail = resource, gmail
         self._set_attributes_from_resource()
@@ -136,49 +133,6 @@ class Message:
         self.labels = {label for label in all_labels if isinstance(label, self.gmail.constructors.Label)}
         self.category = OneOrMany(of_type=self.gmail.constructors.Category).to_one_or_none([label for label in all_labels if isinstance(label, self.gmail.constructors.Category)])
 
-    def _recursively_extract_parts_by_mimetype(self, mime_type: str) -> str:
-        output = []
-
-        def recurse(parts: list) -> None:
-            for part in parts:
-                if part.mimeType == mime_type:
-                    if "data" in part.body:
-                        output.append(self._decode_body(part.body.data))
-                if "parts" in part:
-                    recurse(parts=part.parts)
-
-        recurse(parts=self.resource.payload.parts if "parts" in self.resource.payload else [self.resource.payload])
-        return "".join(output)
-
-    def _decode_body(self, body: str) -> str:
-        return Base64.from_b64(body).to_utf8()
-
-    def _parse_datetime(self, datetime: str) -> DateTime:
-        if datetime is None:
-            return None
-        else:
-            Code = DateTime.FormatCode
-            clean = " ".join(datetime.split(" ")[:5])
-            return DateTime.strptime(clean, f"{Code.WEEKDAY.SHORT}, {Code.DAY.NUM} {Code.MONTH.SHORT} {Code.YEAR.WITH_CENTURY} {Code.HOUR.H24}:{Code.MINUTE.NUM}:{Code.SECOND.NUM}")
-
-    def _recursively_append_attachments_to_list(self, node: Dict_, target_dir: PathLike, output: list = None) -> list:
-        if "filename" in node and node.filename:
-            data = self.gmail.service.users().messages().attachments().get(userId="me", messageId=self.id, id=node.body.attachmentId).execute()["data"]
-
-            file = target_dir.new_file(node.filename)
-            file.path.write_bytes(Base64.from_b64(data).bytes)
-            output.append(file)
-
-        if "parts" in node:
-            for part in node.parts:
-                self._recursively_append_attachments_to_list(node=part, target_dir=target_dir, output=output)
-
-        return output
-
-    @classmethod
-    def from_id(cls, message_id: str, gmail: Gmail) -> Message:
-        return cls(resource=Dict_(gmail.service.users().messages().get(userId="me", id=message_id, format="raw").execute()), gmail=gmail)
-
     class Attribute:
         class From(EquatableAttribute, OrderableAttributeMixin):
             name, attr = "from", "from_"
@@ -202,7 +156,7 @@ class Message:
             name, attr = ComparableName("date", greater="after", less="before"), "date"
 
             def coerce(val: Any) -> str:
-                return str(DateTime.from_string(str(val)).to_date())
+                return DateTime.from_inference(val).to_isoformat_date()
 
         class Size(ComparableAttribute, OrderableAttributeMixin):
             name, attr = ComparableName("size", greater="larger", less="smaller"), "size"
@@ -246,7 +200,7 @@ class Contact:
         return str(self) == str(other)
 
     @classmethod
-    def or_none(cls, contact_or_none: list) -> Optional[Contact]:
+    def or_none(cls, contact_or_none: List[Tuple[str, str]]) -> Optional[Contact]:
         if contact_or_none:
             from_, = contact_or_none
             name, address = from_

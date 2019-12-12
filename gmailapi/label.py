@@ -24,14 +24,6 @@ class BaseLabel:
     def __call__(self) -> BaseLabel:
         return self.refresh()
 
-    def __contains__(self, other: Union[BaseLabel, Message]) -> bool:
-        if isinstance(other, BaseLabel):
-            return other.name in self.name
-        elif isinstance(other, self.gmail.constructors.Category):
-            return self in other.labels or self == other.category
-        else:
-            raise TypeError(f"Cannot test '{type(other).__name__}' object for membership in a '{type(self).__name__}' object. Must be type '{BaseLabel.__name__}' or '{Message.__name__}'.")
-
     def __hash__(self) -> int:
         return hash(self.id)
 
@@ -64,7 +56,13 @@ class BaseLabel:
 
 
 class Label(BaseLabel):
-    pass
+    def __contains__(self, other: Union[BaseLabel, Message]) -> bool:
+        if isinstance(other, BaseLabel):
+            return other.name in self.name
+        elif isinstance(other, self.gmail.constructors.Message):
+            return self in other.labels
+        else:
+            raise TypeError(f"Cannot test '{type(other).__name__}' object for membership in a '{type(self).__name__}' object. Must be type '{BaseLabel.__name__}' or '{Message.__name__}'.")
 
 
 class UserLabel(Label):
@@ -115,6 +113,12 @@ class SystemLabel(Label):
 
 
 class Category(BaseLabel):
+    def __contains__(self, other: Message) -> bool:
+        if isinstance(other, self.gmail.constructors.Message):
+            return self == other.category
+        else:
+            raise TypeError(f"Cannot test '{type(other).__name__}' object for membership in a '{type(self).__name__}' object. Must be type '{Message.__name__}'.")
+
     def refresh(self) -> BaseLabel:
         from .proxy import SystemCategories
 

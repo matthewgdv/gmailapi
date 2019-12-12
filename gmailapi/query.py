@@ -53,6 +53,7 @@ class Query:
         return self
 
     def labels(self, labels: Union[BaseLabel, Collection[BaseLabel]]) -> Query:
+        """Set a label or list of labels (or categories) which the message must have."""
         self._labels = OneOrMany(of_type=BaseLabel).to_list(labels)
         return self
 
@@ -94,12 +95,10 @@ class Query:
         response = Dict_(self._gmail.service.users().messages().list(userId="me", **kwargs).execute())
         resources = response.get("messages", [])
 
-        kwargs["maxResults"] = 500 if self._limit is None else self._limit - len(resources)
-        while kwargs["maxResults"] > 0 and "nextPageToken" in response:
+        while "nextPageToken" in response and (max_results := (5000 if self._limit is None else self._limit - len(resources))):
+            kwargs["maxResults"] = max_results
             response = Dict_(self._gmail.service.users().messages().list(userId="me", pageToken=response.nextPageToken, **kwargs).execute())
             resources += response.messages
-
-            kwargs["maxResults"] = 500 if self._limit is None else self._limit - len(resources)
 
         return [resouce.id for resouce in resources]
 
