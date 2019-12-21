@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Union, TYPE_CHECKING
+from typing import List, Union, TYPE_CHECKING, Optional
 
 from subtypes import Dict_
 
@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 class BaseLabel:
     def __init__(self, label_id: str, *, gmail: Gmail) -> None:
         self.id, self.gmail = label_id, gmail
+        self.name: Optional[str] = None
         self.refresh()
 
     def __repr__(self) -> str:
@@ -45,6 +46,7 @@ class BaseLabel:
     def create_child(self, name: str, label_list_visibility: str = "labelShow", message_list_visibility: set = "show", text_color: str = None, background_color: str = None) -> BaseLabel:
         return self.gmail.create_label(name=f"{self.name}/{name}", label_list_visibility=label_list_visibility, message_list_visibility=message_list_visibility, text_color=text_color, background_color=background_color)
 
+    # noinspection PyAttributeOutsideInit
     def refresh(self) -> BaseLabel:
         self.resource = Dict_(self.gmail.service.users().labels().get(userId="me", id=self.id).execute())
 
@@ -105,7 +107,7 @@ class UserLabel(Label):
 
 
 class SystemLabel(Label):
-    def refresh(self) -> BaseLabel:
+    def refresh(self) -> None:
         from .proxy import SystemLabels
 
         super().refresh()
@@ -119,7 +121,7 @@ class Category(BaseLabel):
         else:
             raise TypeError(f"Cannot test '{type(other).__name__}' object for membership in a '{type(self).__name__}' object. Must be type '{Message.__name__}'.")
 
-    def refresh(self) -> BaseLabel:
+    def refresh(self) -> None:
         from .proxy import SystemCategories
 
         super().refresh()

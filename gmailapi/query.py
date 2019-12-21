@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from typing import Any, List, Callable, Collection, Union, TYPE_CHECKING
+from typing import Any, List, Callable, Collection, Union, TYPE_CHECKING, Optional
 
 from googleapiclient.discovery import BatchHttpRequest
 
@@ -21,12 +21,12 @@ class Query:
 
     def __init__(self, gmail: Gmail) -> None:
         self._gmail = gmail
-        self._select: str = None
-        self._where: str = None
-        self._labels: List[BaseLabel] = None
-        self._limit: int = self._gmail.BATCH_SIZE or 25
+        self._select: Optional[str] = None
+        self._where: Optional[str] = None
+        self._labels: Optional[List[BaseLabel]] = None
+        self._limit: Optional[int] = self._gmail.BATCH_SIZE or 25
         self._trash = False
-        self._order: List[OrderableAttributeMixin] = None
+        self._order: Optional[List[OrderableAttributeMixin]] = None
 
     def __repr__(self) -> str:
         labels = None if self._labels is None else [label.name for label in self._labels]
@@ -40,12 +40,6 @@ class Query:
     def bulk(self) -> BulkAction:
         """Perform a bulk action on the resultset of this query."""
         return BulkAction(self)
-
-    def select(self, detail_level: Message.Format) -> Query:
-        """Set the attributes that will be queried. If this method is not called, all message attributes will be returned."""
-        Message.Format.raise_if_not_a_member(detail_level)
-        self._select = detail_level.value
-        return self
 
     def where(self, expression: Union[BaseAttributeMeta, BaseAttribute, Expression]) -> Query:
         """Set the filter clause on this query. Accepts a single boolean attribute, boolean expression or boolean expression clause."""
@@ -95,14 +89,16 @@ class Query:
         response = Dict_(self._gmail.service.users().messages().list(userId="me", **kwargs).execute())
         resources = response.get("messages", [])
 
+        # noinspection PyTypeChecker
         while "nextPageToken" in response and (max_results := (5000 if self._limit is None else self._limit - len(resources))):
+            # noinspection PyUnboundLocalVariable
             kwargs["maxResults"] = max_results
             response = Dict_(self._gmail.service.users().messages().list(userId="me", pageToken=response.nextPageToken, **kwargs).execute())
             resources += response.messages
 
         return [resouce.id for resouce in resources]
 
-    def _fetch_messages_in_batch(self, message_ids: List[str], batch_delay: int = 1) -> List[Message]:
+    def _fetch_messages_in_batch(self, message_ids: List[int], batch_delay: int = 1) -> List[Message]:
         def append_to_list(response_id: str, response: dict, exception: Exception) -> None:
             if exception is not None:
                 raise exception
@@ -131,9 +127,9 @@ class Query:
 class BulkActionContext:
     """A class representing the context within which a bulk action is performed. It can be used as a context manager and will automatically perform the action upon dropping out of scope if the action was committed."""
 
-    def __init__(self, action: Callable) -> None:
-        self._action, self._committed = action, False
-        self.result_set: List[str] = None
+    def __init__(self, action: Callable, query: Query) -> None:
+        self._action, self._query, self._committed = action, query, False
+        self.result_set: Optional[List[str]] = None
 
     def __len__(self) -> int:
         return len(self.result_set)
@@ -147,7 +143,7 @@ class BulkActionContext:
 
     def __exit__(self, ex_type: Any, ex_value: Any, ex_traceback: Any) -> None:
         if self._committed:
-            self._action.execute()
+            self._action(self.result_set)
 
     def commit(self) -> None:
         """Commit the action corresponding to this context. It will be performed when this object drops out of context."""
@@ -156,41 +152,41 @@ class BulkActionContext:
     def execute(self) -> int:
         """Perform the bulk action corresponding to this context."""
         self.result_set = self._query._fetch_message_ids()
-        self._action.execute()
+        self._action(self.result_set)
         return len(self)
 
 
 class BulkAction:
     """A class representing a bulk action performed on the resultset of a query."""
 
-    def __init__(self, gmail: Gmail) -> None:
-        self._gmail = gmail
+    def __init__(self, query: Query) -> None:
+        self._query, self._gmail = query, query._gmail
 
     def delete(self) -> BulkActionContext:
-        return BulkActionContext(action=lambda results: self._gmail.service.users().messages().batchDelete(userId="me", body={"ids": results}))
+        return BulkActionContext(action=lambda results: self._gmail.service.users().messages().batchDelete(userId="me", body={"ids": results}), query=self._query)
 
     def change_category_to(self, category: Category) -> BulkActionContext:
-        if isinstance(category, self.gmail.constructors.Category):
-            return BulkActionContext(action=lambda results: self._gmail.service.users().messages().batchModify(userId="me", body={"ids": results, "addLabelIds": [category.id]}))
+        if isinstance(category, self._gmail.constructors.Category):
+            return BulkActionContext(action=lambda results: self._gmail.service.users().messages().batchModify(userId="me", body={"ids": results, "addLabelIds": [category.id]}), query=self._query)
         else:
-            raise TypeError(f"Argument to '{self.change_category_to.__name__}' must be of type '{self.gmail.constructors.Category.__name__}', not '{type(category).__name__}'.")
+            raise TypeError(f"Argument to '{self.change_category_to.__name__}' must be of type '{self._gmail.constructors.Category.__name__}', not '{type(category).__name__}'.")
 
     def add_labels(self, labels: Union[Label, Collection[Label]]) -> BulkActionContext:
-        label_ids = OneOrMany(of_type=self.gmail.constructors.Label).to_list(labels)
-        return BulkActionContext(action=lambda results: self._gmail.service.users().messages().batchModify(userId="me", body={"ids": results, "addLabelIds": label_ids}))
+        label_ids = OneOrMany(of_type=self._gmail.constructors.Label).to_list(labels)
+        return BulkActionContext(action=lambda results: self._gmail.service.users().messages().batchModify(userId="me", body={"ids": results, "addLabelIds": label_ids}), query=self._query)
 
     def remove_labels(self, labels: Union[Label, Collection[Label]]) -> BulkActionContext:
-        label_ids = OneOrMany(of_type=self.gmail.constructors.Label).to_list(labels)
-        return BulkActionContext(action=lambda results: self._gmail.service.users().messages().batchModify(userId="me", body={"ids": results, "removeLabelIds": label_ids}))
+        label_ids = OneOrMany(of_type=self._gmail.constructors.Label).to_list(labels)
+        return BulkActionContext(action=lambda results: self._gmail.service.users().messages().batchModify(userId="me", body={"ids": results, "removeLabelIds": label_ids}), query=self._query)
 
     def mark_is_read(self, is_read: bool = True) -> BulkActionContext:
-        return self.remove_labels(self._gmail.labels.UNREAD()) if is_read else self.add_labels(self.gmail.labels.UNREAD())
+        return self.remove_labels(self._gmail.labels.UNREAD()) if is_read else self.add_labels(self._gmail.labels.UNREAD())
 
     def mark_is_important(self, is_important: bool = True) -> BulkActionContext:
-        return self.add_labels(self._gmail.labels.IMPORTANT()) if is_important else self.remove_labels(self.gmail.labels.IMPORTANT())
+        return self.add_labels(self._gmail.labels.IMPORTANT()) if is_important else self.remove_labels(self._gmail.labels.IMPORTANT())
 
     def mark_is_starred(self, is_starred: bool = True) -> BulkActionContext:
-        return self.add_labels(self._gmail.labels.STARRED()) if is_starred else self.remove_labels(self.gmail.labels.STARRED())
+        return self.add_labels(self._gmail.labels.STARRED()) if is_starred else self.remove_labels(self._gmail.labels.STARRED())
 
     def archive(self) -> BulkActionContext:
         return self.remove_labels(self._gmail.labels.INBOX())

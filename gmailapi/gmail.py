@@ -7,7 +7,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 
 from pathmagic import File
-from iotools import Config, Gui, widget
+from iotools import Config as SuperConfig, Gui, widget
 
 from .proxy import SystemDefaults, LabelAccessor
 from .label import BaseLabel, Label, UserLabel, SystemLabel, Category
@@ -16,7 +16,7 @@ from .query import Query
 import gmailapi
 
 
-class Config(Config):
+class Config(SuperConfig):
     name = gmailapi.__name__
 
 
@@ -93,7 +93,7 @@ class Gmail:
         if not self.credentials or not self.credentials.valid:
             print("Before continuing, please create a new project with OAuth 2.0 credentials, or download your credentials from an existing project.")
             webbrowser.open("https://console.developers.google.com/")
-            self.credentials = InstalledAppFlow.from_client_secrets_file(self._request_credentials_json(), self.DEFAULT_SCOPES).run_local_server(port=0)
+            self.credentials = InstalledAppFlow.from_client_secrets_file(str(self._request_credentials_json()), self.DEFAULT_SCOPES).run_local_server(port=0)
             self.token.content = self.credentials
 
     def _request_credentials_json(self) -> File:

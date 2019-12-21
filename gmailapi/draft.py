@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from typing import List, Union, Collection, TYPE_CHECKING
+from typing import List, Union, Collection, TYPE_CHECKING, Optional
 from html import escape, unescape
 
 import emails
@@ -20,7 +20,7 @@ class MessageDraft:
 
     def __init__(self, gmail: Gmail, parent: Message = None) -> None:
         self.gmail, self.parent = gmail, parent
-        self._subject = self._html = self._text = self._from = self._to = self._cc = self._bcc = None  # type: str
+        self._subject = self._html = self._text = self._from = self._to = self._cc = self._bcc = None  # type: Optional[str]
         self._attachments: List[File] = []
 
     def subject(self, subject: str) -> MessageDraft:
@@ -71,6 +71,8 @@ class MessageDraft:
         return self.gmail.constructors.Message.from_id(message_id=message_id, gmail=self.gmail)
 
     def _prepare_message_body(self) -> dict:
+        html = plain = None  # type: Optional[str]
+
         if self._html:
             html = self._html
             if not self._text:

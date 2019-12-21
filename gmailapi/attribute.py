@@ -89,7 +89,7 @@ class ComparableAttributeMeta(BaseAttributeMeta):
 
 class BaseAttribute:
     """An abstract base class for all attributes to inherit from, providing basic functionality."""
-    name: str
+    name: Union[str, ComparableName]
 
     def __init__(self, operator: Operator = None, value: Any = None, direction: Direction = None) -> None:
         self.operator, self.value, self.direction, self.negated = operator, value, direction, False
@@ -178,6 +178,9 @@ class OrderableAttributeMixin:
     """A mixin class for attributes to inherit from which maps to an attribute of Message objects, for use in order_by clauses."""
 
     attr: str
+
+    def __init__(self, direction: Direction) -> None:
+        self.direction = direction
 
     @classmethod
     def asc(cls) -> OrderableAttributeMixin:

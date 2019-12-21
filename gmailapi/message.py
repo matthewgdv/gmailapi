@@ -27,9 +27,9 @@ class Message:
         return f"{type(self).__name__}(subject={repr(self.subject)}, from={repr(str(self.from_))}, to={repr([str(contact) for contact in self.to])}, date='{self.date}')"
 
     def __str__(self) -> str:
-        return self.text
+        return self.body.text
 
-    def __call__(self) -> BaseLabel:
+    def __call__(self) -> Message:
         return self.refresh()
 
     def __hash__(self) -> int:
@@ -46,14 +46,11 @@ class Message:
     @property
     def markup(self) -> Markup:
         """A property controlling access to the subtypes.Markup object corresponding to this message's html body."""
-        return Markup(self.body)
+        return Markup(self.body.html)
 
     def render(self) -> None:
         """Render the message body html in a separate window. Will block until the window has been closed by a user."""
-        HtmlGui(name=self.subject, text=self.body).start()
-
-    def save_attachments_to(self, directory: PathLike) -> List[File]:
-        return self._recursively_append_attachments_to_list(node=self.resource.payload, target_dir=Dir.from_pathlike(directory), output=[])
+        HtmlGui(name=self.subject, text=self.body.html).start()
 
     def change_category_to(self, category: Category) -> Message:
         if isinstance(category, self.gmail.constructors.Category):
@@ -110,9 +107,10 @@ class Message:
     def forward(self) -> MessageDraft:
         return MessageDraft(gmail=self.gmail, parent=self).subject(f"FWD: {self.subject}")
 
-    def refresh(self) -> None:
+    def refresh(self) -> Message:
         self.resource = Dict_(self.gmail.service.users().messages().get(userId="me", id=self.id, format="raw").execute())
         self._set_attributes_from_resource()
+        return self
 
     def _set_attributes_from_resource(self) -> None:
         self.id, self.thread_id, self.size = self.resource.id, self.resource.threadId, self.resource.sizeEstimate
@@ -155,7 +153,7 @@ class Message:
         class Date(ComparableAttribute, OrderableAttributeMixin):
             name, attr = ComparableName("date", greater="after", less="before"), "date"
 
-            def coerce(val: Any) -> str:
+            def coerce(self, val: Any) -> str:
                 return DateTime.from_inference(val).to_isoformat_date()
 
         class Size(ComparableAttribute, OrderableAttributeMixin):
@@ -246,5 +244,5 @@ class Attachment:
         return self._save(File.from_pathlike(file))
 
     def _save(self, file: PathLike) -> File:
-        file.path.write_bytes(Base64.from_b64(self.payload).bytes)
+        (file := File.from_pathlike(file)).path.write_bytes(Base64.from_b64(self.payload).bytes)
         return file

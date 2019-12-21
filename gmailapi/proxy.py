@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from subtypes import Dict_, NameSpace
 
@@ -128,9 +128,9 @@ class LabelAccessor(NameSpace):
 
 
 class BaseProxy(NameSpace):
-    def __init__(self, entity_id: str, entity_name: str, gmail: str, parent: LabelProxy = None) -> None:
+    def __init__(self, entity_id: str, entity_name: str, gmail: Gmail, parent: LabelProxy = None) -> None:
         self._entity_id_, self._entity_name_, self._gmail_, self._parent_ = entity_id, entity_name, gmail, parent
-        self._entity_: BaseLabel = None
+        self._entity_: Optional[BaseLabel] = None
         self._gmail_.labels._id_mappings_[entity_id] = self._gmail_.labels._name_mappings_[entity_name] = self
 
     def __repr__(self) -> str:
