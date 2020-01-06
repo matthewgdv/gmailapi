@@ -154,7 +154,7 @@ class Message:
             name, attr = ComparableName("date", greater="after", less="before"), "date"
 
             def coerce(self, val: Any) -> str:
-                return DateTime.from_inference(val).to_isoformat_date()
+                return DateTime.from_datelike(val).to_isoformat(time=False)
 
         class Size(ComparableAttribute, OrderableAttributeMixin):
             name, attr = ComparableName("size", greater="larger", less="smaller"), "size"
