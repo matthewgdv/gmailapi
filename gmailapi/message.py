@@ -131,6 +131,10 @@ class Message:
         self.labels = {label for label in all_labels if isinstance(label, self.gmail.constructors.Label)}
         self.category = OneOrMany(of_type=self.gmail.constructors.Category).to_one_or_none([label for label in all_labels if isinstance(label, self.gmail.constructors.Category)])
 
+    @classmethod
+    def from_id(cls, message_id: str, gmail: Gmail) -> Message:
+        return cls(resource=Dict_(gmail.service.users().messages().get(userId="me", id=message_id, format="raw").execute()), gmail=gmail)
+
     class Attribute:
         class From(EquatableAttribute, OrderableAttributeMixin):
             name, attr = "from", "from_"

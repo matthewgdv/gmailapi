@@ -60,9 +60,7 @@ class MessageDraft:
 
     def attach(self, attachments: Union[PathLike, Collection[PathLike]]) -> MessageDraft:
         """Attach a file or a collection of files to this message."""
-
-        temp = OneOrMany(of_type=(str, os.PathLike)).to_list(attachments)
-        self._attachments += [File.from_pathlike(file) for file in temp]
+        self._attachments += [File.from_pathlike(file) for file in OneOrMany(of_type=(str, os.PathLike)).to_list(attachments)]
         return self
 
     def send(self) -> bool:
@@ -85,7 +83,7 @@ class MessageDraft:
 
         msg = emails.Message(subject=self._subject, mail_from=self._from, mail_to=self._to, html=html, text=plain, cc=self._cc, bcc=self._bcc, headers=None, charset="utf-8")
         for attachment in self._attachments:
-            msg.attach(filename=attachment.name, data=attachment)
+            msg.attach(filename=attachment.name, data=open(attachment, "rb"))
 
         body = {"raw": Base64(raw_bytes=msg.build_message().as_bytes()).to_b64()}
 
