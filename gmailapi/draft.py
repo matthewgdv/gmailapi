@@ -83,7 +83,8 @@ class MessageDraft:
 
         msg = emails.Message(subject=self._subject, mail_from=self._from, mail_to=self._to, html=html, text=plain, cc=self._cc, bcc=self._bcc, headers=None, charset="utf-8")
         for attachment in self._attachments:
-            msg.attach(filename=attachment.name, data=open(attachment, "rb"))
+            with open(attachment, "rb") as stream:
+                msg.attach(filename=attachment.name, data=stream)
 
         body = {"raw": Base64(raw_bytes=msg.build_message().as_bytes()).to_b64()}
 
