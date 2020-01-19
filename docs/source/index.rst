@@ -1,5 +1,5 @@
 Welcome to gmailapi's documentation!
-=================================
+====================================
 
 .. toctree::
    :caption: Contents:
