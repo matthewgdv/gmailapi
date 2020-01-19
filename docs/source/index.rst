@@ -1,4 +1,4 @@
-Welcome to maybe's documentation!
+Welcome to gmailapi's documentation!
 =================================
 
 .. toctree::
