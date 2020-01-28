@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 from typing import Any, List, Tuple, Union, Collection, Optional, TYPE_CHECKING
-from html import unescape
 
 import mailparser
 
 from pathmagic import File, Dir, PathLike
-from subtypes import Dict_, BaseList, DateTime, Markup
+from subtypes import Dict_, BaseList, DateTime, Html
 from miscutils import OneOrMany, Base64
 from iotools import HtmlGui
 
@@ -43,14 +42,9 @@ class Message:
         else:
             raise TypeError(f"Cannot test '{type(other).__name__}' object for membership in a '{type(self).__name__}' object. Must be type '{BaseLabel.__name__}'.")
 
-    @property
-    def markup(self) -> Markup:
-        """A property controlling access to the subtypes.Markup object corresponding to this message's html body."""
-        return Markup(self.body.html)
-
     def render(self) -> None:
         """Render the message body html in a separate window. Will block until the window has been closed by a user."""
-        HtmlGui(name=self.subject, text=self.body.html).start()
+        HtmlGui(name=self.subject, text=str(self.body.html)).start()
 
     def change_category_to(self, category: Category) -> Message:
         if isinstance(category, self.gmail.constructors.Category):
@@ -217,7 +211,7 @@ class Contact:
 
 class Body:
     def __init__(self, text: str = None, html: str = None) -> None:
-        self.text, self.html, self.raw = text, unescape(html), html
+        self.text, self.html = text, Html(html)
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({', '.join([f'{attr}={repr(val)}' for attr, val in self.__dict__.items() if not attr.startswith('_')])})"
@@ -226,7 +220,7 @@ class Body:
         return self.text
 
     def _repr_html_(self) -> str:
-        return self.raw
+        return str(self.html)
 
 
 class Attachments(BaseList):
