@@ -211,10 +211,10 @@ class Contact:
 
 class Body:
     def __init__(self, text: str = None, html: str = None) -> None:
-        self.text, self.html = text, Html(html)
+        self.text, self.html = text.strip(), Html(html.strip())
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}({', '.join([f'{attr}={repr(val)}' for attr, val in self.__dict__.items() if not attr.startswith('_')])})"
+        return f"{type(self).__name__}(text={repr(self.text)})"
 
     def __str__(self) -> str:
         return self.text

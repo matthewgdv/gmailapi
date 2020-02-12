@@ -6,7 +6,7 @@ from html import escape, unescape
 
 import emails
 
-from subtypes import Markup, Str
+from subtypes import Html, Str
 from pathmagic import File, PathLike
 from miscutils import OneOrMany, Base64
 
@@ -83,8 +83,7 @@ class MessageDraft:
 
         msg = emails.Message(subject=self._subject, mail_from=self._from, mail_to=self._to, html=html, text=plain, cc=self._cc, bcc=self._bcc, headers=None, charset="utf-8")
         for attachment in self._attachments:
-            with open(attachment, "rb") as stream:
-                msg.attach(filename=attachment.name, data=stream)
+            msg.attach(filename=attachment.name, data=attachment.path.read_bytes())
 
         body = {"raw": Base64(raw_bytes=msg.build_message().as_bytes()).to_b64()}
 
@@ -97,7 +96,7 @@ class MessageDraft:
         return [str(contact) for contact in OneOrMany(of_type=(self.gmail.constructors.Contact, str)).to_list(contacts)]
 
     def _html_to_plaintext(self, html: str) -> str:
-        markup = Markup(unescape(self._html.replace("<br>", "\n")))
+        markup = Html(unescape(self._html.replace("<br>", "\n")))
         for meta in ["base", "head", "link", "meta", "style", "title"]:
             for tag in markup.find_all(meta):
                 tag.extract()
