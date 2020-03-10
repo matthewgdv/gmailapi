@@ -6,7 +6,7 @@ from subtypes import Enum
 
 
 class Operator(Enum):
-    EQUAL, NOT_EQUAL, GREATER, LESS = "__eq__", "__ne__", "__gt__", "__lt__"
+    EQUAL, UNEQUAL, GREATER, LESS = "__eq__", "__ne__", "__gt__", "__lt__"
 
 
 class ChainOperator(Enum):
@@ -47,7 +47,7 @@ class BooleanAttributeMeta(BaseAttributeMeta):
     """A metaclass for boolean attributes which allows them to be automatically resolved to a True boolean expression, or inverted ('~' operator) for a False one."""
 
     def __invert__(cls) -> BooleanAttribute:
-        return cls(operator=Operator.NOT_EQUAL, value=True)
+        return cls(operator=Operator.UNEQUAL, value=True)
 
     def _resolve(cls) -> BooleanAttribute:
         return cls(operator=Operator.EQUAL, value=True)
@@ -74,7 +74,7 @@ class EquatableAttributeMeta(BaseAttributeMeta):
         return cls(operator=Operator.EQUAL, value=other)
 
     def __ne__(cls, other: Any) -> EquatableAttribute:
-        return cls(operator=Operator.NOT_EQUAL, value=other)
+        return cls(operator=Operator.UNEQUAL, value=other)
 
 
 class ComparableAttributeMeta(BaseAttributeMeta):
@@ -107,7 +107,7 @@ class BaseAttribute:
         return Expression(left=self, operator=ChainOperator.OR, right=other)
 
     def prefix(self) -> str:
-        negated = not self.negated if self.operator == Operator.NOT_EQUAL else self.negated
+        negated = not self.negated if self.operator == Operator.UNEQUAL else self.negated
         return "-" if negated else ""
 
     def left(self) -> str:
@@ -122,12 +122,10 @@ class BooleanAttribute(BaseAttribute, metaclass=BooleanAttributeMeta):
     owner: str
 
     def prefix(self) -> str:
-        if self.operator == Operator.EQUAL:
-            truth = True
-        elif self.operator == Operator.NOT_EQUAL:
-            truth = False
-        else:
-            raise ValueError(f"Invalid operator: '{self.operator}' for attribute of type '{type(self).__name__}'.")
+        truth = Operator(self.operator).map_to({
+            Operator.EQUAL: True,
+            Operator.UNEQUAL: False,
+        })
 
         truth = not truth if self.negated else truth
         return '' if truth else '-'
@@ -150,7 +148,7 @@ class EquatableAttribute(BaseAttribute, metaclass=EquatableAttributeMeta):
     """A class for attributes to inherit from which can be queried with '==' and '!='."""
 
     def right(self) -> str:
-        if self.operator in (Operator.EQUAL, Operator.NOT_EQUAL):
+        if self.operator in (Operator.EQUAL, Operator.UNEQUAL):
             return f'"{self.value}"'
         else:
             raise ValueError(f"Invalid operator: '{self.operator}' for attribute of type '{type(self).__name__}'.")
@@ -160,12 +158,10 @@ class ComparableAttribute(BaseAttribute, metaclass=ComparableAttributeMeta):
     """A class for attributes to inherit from which can be queried with '>' and '<'."""
 
     def left(self) -> str:
-        if self.operator == Operator.GREATER:
-            return self.name.greater
-        elif self.operator == Operator.LESS:
-            return self.name.less
-        else:
-            raise ValueError(f"Invalid operator: '{self.operator}' for attribute of type '{type(self).__name__}'.")
+        return Operator(self.operator).map_to({
+            Operator.GREATER: self.name.greater,
+            Operator.LESS: self.name.less,
+        })
 
     def right(self) -> str:
         return self.coerce(self.value)
@@ -214,8 +210,8 @@ class Expression:
         return str(self)
 
     def __str__(self) -> str:
-        start, stop = self.parentheses[self.operator]
-        return f"""{'-' if self.negated else ''}{start}{self.left} {self.right}{stop}"""
+        open_paren, close_paren = self.parentheses[self.operator]
+        return f"""{'-' if self.negated else ''}{open_paren}{self.left} {self.right}{close_paren}"""
 
     def __and__(self, other: Union[BaseAttribute, Expression]) -> Expression:
         return Expression(left=self, operator=ChainOperator.AND, right=other)
