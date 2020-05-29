@@ -66,7 +66,7 @@ class Query:
         self._trash = include_trash
         return self
 
-    def execute(self) -> Any:
+    def execute(self) -> List[Message]:
         """Execute this query and return the results."""
         message_ids = self._fetch_message_ids()
         if self._gmail.BATCH_SIZE is None:
