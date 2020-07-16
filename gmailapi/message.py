@@ -56,25 +56,25 @@ class Message:
         return self
 
     def add_labels(self, labels: Union[Label, Collection[Label]]) -> Message:
-        self.gmail.service.users().messages().modify(userId="me", id=self.id, body={"addLabelIds": OneOrMany(of_type=self.gmail.constructors.Label).to_list(labels)}).execute()
+        self.gmail.service.users().messages().modify(userId="me", id=self.id, body={"addLabelIds": [label.id for label in OneOrMany(of_type=self.gmail.constructors.Label).to_list(labels)]}).execute()
         self.refresh()
         return self
 
     def remove_labels(self, labels: Union[Label, Collection[Label]]) -> Message:
-        self.gmail.service.users().messages().modify(userId="me", id=self.id, body={"removeLabelIds": OneOrMany(of_type=self.gmail.constructors.Label).to_list(labels)}).execute()
+        self.gmail.service.users().messages().modify(userId="me", id=self.id, body={"removeLabelIds": [label.id for label in OneOrMany(of_type=self.gmail.constructors.Label).to_list(labels)]}).execute()
         self.refresh()
         return self
 
     def mark_is_read(self, is_read: bool = True) -> Message:
-        self.remove_labels(self.gmail.labels.UNREAD()) if is_read else self.add_labels(self.gmail.labels.UNREAD())
+        self.remove_labels(self.gmail.system.labels.unread()) if is_read else self.add_labels(self.gmail.system.labels.unread())
         return self
 
     def mark_is_important(self, is_important: bool = True) -> Message:
-        self.add_labels(self.gmail.labels.IMPORTANT()) if is_important else self.remove_labels(self.gmail.labels.IMPORTANT())
+        self.add_labels(self.gmail.system.labels.important()) if is_important else self.remove_labels(self.gmail.system.labels.important())
         return self
 
     def mark_is_starred(self, is_starred: bool = True) -> Message:
-        self.add_labels(self.gmail.labels.STARRED()) if is_starred else self.remove_labels(self.gmail.labels.STARRED())
+        self.add_labels(self.gmail.system.labels.starred()) if is_starred else self.remove_labels(self.gmail.system.labels.starred())
         return self
 
     def archive(self) -> Message:
