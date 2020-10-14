@@ -69,7 +69,7 @@ class Query:
     def execute(self) -> List[Message]:
         """Execute this query and return the results."""
         message_ids = self._fetch_message_ids()
-        if self._gmail.BATCH_SIZE is None:
+        if not self._gmail.BATCH_SIZE:
             messages = [self._gmail.constructors.Message.from_id(message_id=message_id, gmail=self._gmail) for message_id in message_ids]
         else:
             messages = sum([self._fetch_messages_in_batch(message_ids[index:index + self._gmail.BATCH_SIZE]) for index in range(0, len(message_ids), self._gmail.BATCH_SIZE)], [])
@@ -119,7 +119,7 @@ class Query:
 
     def _apply_ordering_to_messages(self, messages: List[Message]) -> List[Message]:
         for attribute in reversed(self._order):
-            messages = sorted(messages, key=lambda msg: getattr(msg, attribute.attr), reverse=True if attribute.direction == Direction.DESCENDING else False)
+            messages = sorted(messages, key=lambda msg: getattr(msg, attribute.attr), reverse=attribute.direction == Direction.DESCENDING)
 
         return messages
 
