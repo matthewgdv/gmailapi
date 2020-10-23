@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import List, Union, TYPE_CHECKING, Optional
 
-from subtypes import Dict_
+from subtypes import Dict
 
 if TYPE_CHECKING:
     from .gmail import Gmail
@@ -36,7 +36,7 @@ class BaseLabel:
         return self.gmail.labels._id_mappings_[self.id]._parent_()
 
     @property
-    def children(self) -> List[BaseLabel]:
+    def children(self) -> list[BaseLabel]:
         return [label() for name, label in self.gmail.labels._id_mappings_[self.id]]
 
     @property
@@ -48,7 +48,7 @@ class BaseLabel:
 
     # noinspection PyAttributeOutsideInit
     def refresh(self) -> BaseLabel:
-        self.resource = Dict_(self.gmail.service.users().labels().get(userId="me", id=self.id).execute())
+        self.resource = Dict(self.gmail.service.users().labels().get(userId="me", id=self.id).execute())
 
         self.id, self.name, self.type = self.resource.id, self.resource.name, self.resource.get("type", "user")
         self.messages_total, self.messages_unread = self.resource.messagesTotal, self.resource.messagesUnread
@@ -86,7 +86,7 @@ class UserLabel(Label):
         self.gmail.service.users().labels().delete(userId="me", id=self.id).execute()
 
         if recursive:
-            for label in Dict_(self.gmail.service.users().labels().list(userId="me").execute()).labels:
+            for label in Dict(self.gmail.service.users().labels().list(userId="me").execute()).labels:
                 if label.name.startswith(f"{self.name}/") and label.type == "user":
                     self.gmail.service.users().labels().delete(userId="me", id=label.id).execute()
 

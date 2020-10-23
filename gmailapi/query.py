@@ -5,7 +5,7 @@ from typing import Any, List, Callable, Collection, Union, TYPE_CHECKING, Option
 
 from googleapiclient.discovery import BatchHttpRequest
 
-from subtypes import Dict_
+from subtypes import Dict
 from miscutils import OneOrMany, Timer
 
 from .attribute import BaseAttributeMeta, BaseAttribute, Expression, OrderableAttributeMixin, Direction
@@ -23,10 +23,10 @@ class Query:
         self._gmail = gmail
         self._select: Optional[str] = None
         self._where: Optional[str] = None
-        self._labels: Optional[List[BaseLabel]] = None
+        self._labels: Optional[list[BaseLabel]] = None
         self._limit: Optional[int] = self._gmail.BATCH_SIZE or 25
         self._trash = False
-        self._order: Optional[List[OrderableAttributeMixin]] = None
+        self._order: Optional[list[OrderableAttributeMixin]] = None
 
     def __repr__(self) -> str:
         labels = None if self._labels is None else [label.name for label in self._labels]
@@ -66,7 +66,7 @@ class Query:
         self._trash = include_trash
         return self
 
-    def execute(self) -> List[Message]:
+    def execute(self) -> list[Message]:
         """Execute this query and return the results."""
         message_ids = self._fetch_message_ids()
         if not self._gmail.BATCH_SIZE:
@@ -76,7 +76,7 @@ class Query:
 
         return messages if self._order is None else self._apply_ordering_to_messages(messages)
 
-    def _fetch_message_ids(self) -> List[int]:
+    def _fetch_message_ids(self) -> list[int]:
         kwargs = {
             key: val for key, val in
             {"q": self._where,
@@ -86,24 +86,24 @@ class Query:
             if val
         }
 
-        response = Dict_(self._gmail.service.users().messages().list(userId="me", **kwargs).execute())
+        response = Dict(self._gmail.service.users().messages().list(userId="me", **kwargs).execute())
         resources = response.get("messages", [])
 
         # noinspection PyTypeChecker
         while "nextPageToken" in response and (max_results := (5000 if self._limit is None else self._limit - len(resources))):
             # noinspection PyUnboundLocalVariable
             kwargs["maxResults"] = max_results
-            response = Dict_(self._gmail.service.users().messages().list(userId="me", pageToken=response.nextPageToken, **kwargs).execute())
+            response = Dict(self._gmail.service.users().messages().list(userId="me", pageToken=response.nextPageToken, **kwargs).execute())
             resources += response.messages
 
         return [resouce.id for resouce in resources]
 
-    def _fetch_messages_in_batch(self, message_ids: List[int], batch_delay: int = 1) -> List[Message]:
+    def _fetch_messages_in_batch(self, message_ids: list[int], batch_delay: int = 1) -> list[Message]:
         def append_to_list(response_id: str, response: dict, exception: Exception) -> None:
             if exception is not None:
                 raise exception
 
-            resources.append(Dict_(response))
+            resources.append(Dict(response))
 
         timer, resources, batch = Timer(), [], BatchHttpRequest(callback=append_to_list)
         for message_id in message_ids:
@@ -117,7 +117,7 @@ class Query:
 
         return messages
 
-    def _apply_ordering_to_messages(self, messages: List[Message]) -> List[Message]:
+    def _apply_ordering_to_messages(self, messages: list[Message]) -> list[Message]:
         for attribute in reversed(self._order):
             messages = sorted(messages, key=lambda msg: getattr(msg, attribute.attr), reverse=attribute.direction == Direction.DESCENDING)
 
@@ -129,7 +129,7 @@ class BulkActionContext:
 
     def __init__(self, action: Callable, query: Query) -> None:
         self._action, self._query, self._committed = action, query, False
-        self.result_set: Optional[List[str]] = None
+        self.result_set: Optional[list[str]] = None
 
     def __len__(self) -> int:
         return len(self.result_set)

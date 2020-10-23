@@ -5,7 +5,7 @@ from typing import Any, List, Tuple, Union, Collection, Optional, TYPE_CHECKING
 import mailparser
 
 from pathmagic import File, Dir, PathLike
-from subtypes import Dict_, BaseList, DateTime, Html
+from subtypes import Dict, BaseList, DateTime, Html
 from miscutils import OneOrMany, Base64
 from iotools import HtmlGui
 
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 
 class Message:
-    def __init__(self, resource: Dict_, gmail: Gmail) -> None:
+    def __init__(self, resource: Dict, gmail: Gmail) -> None:
         self.resource, self.gmail = resource, gmail
         self._set_attributes_from_resource()
 
@@ -102,7 +102,7 @@ class Message:
         return MessageDraft(gmail=self.gmail, parent=self).subject(f"FWD: {self.subject}")
 
     def refresh(self) -> Message:
-        self.resource = Dict_(self.gmail.service.users().messages().get(userId="me", id=self.id, format="raw").execute())
+        self.resource = Dict(self.gmail.service.users().messages().get(userId="me", id=self.id, format="raw").execute())
         self._set_attributes_from_resource()
         return self
 
@@ -127,7 +127,7 @@ class Message:
 
     @classmethod
     def from_id(cls, message_id: str, gmail: Gmail) -> Message:
-        return cls(resource=Dict_(gmail.service.users().messages().get(userId="me", id=message_id, format="raw").execute()), gmail=gmail)
+        return cls(resource=Dict(gmail.service.users().messages().get(userId="me", id=message_id, format="raw").execute()), gmail=gmail)
 
     class Attribute:
         class From(EquatableAttribute, OrderableAttributeMixin):
@@ -196,7 +196,7 @@ class Contact:
         return str(self) == str(other)
 
     @classmethod
-    def or_none(cls, contact_or_none: List[Tuple[str, str]]) -> Optional[Contact]:
+    def or_none(cls, contact_or_none: list[Tuple[str, str]]) -> Optional[Contact]:
         if contact_or_none:
             from_, = contact_or_none
             name, address = from_
@@ -205,7 +205,7 @@ class Contact:
             return None
 
     @classmethod
-    def many_or_none(cls, contacts_or_none: str = None) -> Optional[List[Contact]]:
+    def many_or_none(cls, contacts_or_none: str = None) -> Optional[list[Contact]]:
         return [cls(name=name, address=address) for name, address in contacts_or_none] if contacts_or_none else None
 
 
@@ -224,7 +224,7 @@ class Body:
 
 
 class Attachments(BaseList):
-    def save_to(self, folder: PathLike) -> List[File]:
+    def save_to(self, folder: PathLike) -> list[File]:
         return [attachment.save_to(folder) for attachment in self]
 
 

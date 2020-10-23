@@ -21,7 +21,7 @@ class MessageDraft:
     def __init__(self, gmail: Gmail, parent: Message = None) -> None:
         self.gmail, self.parent = gmail, parent
         self._subject = self._html = self._text = self._from = self._to = self._cc = self._bcc = None  # type: Optional[str]
-        self._attachments: List[File] = []
+        self._attachments: list[File] = []
 
     def subject(self, subject: str) -> MessageDraft:
         """Set the subject of the message."""
@@ -92,7 +92,7 @@ class MessageDraft:
 
         return body
 
-    def _parse_contacts(self, contacts: Union[str, Collection[str]]) -> List[str]:
+    def _parse_contacts(self, contacts: Union[str, Collection[str]]) -> list[str]:
         return [str(contact) for contact in OneOrMany(of_type=(self.gmail.constructors.Contact, str)).to_list(contacts)]
 
     def _html_to_plaintext(self, html: str) -> str:

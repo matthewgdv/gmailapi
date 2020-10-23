@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional
 
-from subtypes import Dict_, NameSpace
+from subtypes import Dict, NameSpace
 
 if TYPE_CHECKING:
     from .gmail import Gmail
@@ -96,7 +96,7 @@ class LabelAccessor(NameSpace):
     def _regenerate_label_tree(self) -> LabelAccessor:
         self._gmail_.expire(), self()
 
-        labels = Dict_(self._gmail_.service.users().labels().list(userId="me").execute()).labels
+        labels = Dict(self._gmail_.service.users().labels().list(userId="me").execute()).labels
         real_labels = [label for label in labels if label.id not in SystemCategories._id_name_mappings]
 
         existing_label_ids = {label.id for label in real_labels}
