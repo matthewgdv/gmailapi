@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, List, Tuple, Union, Collection, Optional, TYPE_CHECKING
+from typing import Any, Tuple, Union, Collection, Optional, TYPE_CHECKING
 
 import mailparser
 

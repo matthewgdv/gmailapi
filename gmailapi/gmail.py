@@ -28,7 +28,7 @@ class Gmail:
 
     constructors = Constructors()
 
-    BATCH_SIZE = 25
+    BATCH_SIZE = None  # 25
     BATCH_DELAY_SECONDS = 1
 
     DEFAULT_SCOPES = ["https://mail.google.com/"]

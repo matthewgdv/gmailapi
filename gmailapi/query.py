@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from typing import Any, List, Callable, Collection, Union, TYPE_CHECKING, Optional
+from typing import Any, Callable, Collection, Union, TYPE_CHECKING, Optional
 
 from googleapiclient.discovery import BatchHttpRequest
 

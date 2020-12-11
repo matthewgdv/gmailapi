@@ -106,6 +106,10 @@ class BaseAttribute:
     def __or__(self, other: Union[BaseAttribute, Expression]) -> Expression:
         return Expression(left=self, operator=ChainOperator.OR, right=other)
 
+    def __invert__(self) -> BaseAttribute:
+        self.negated = not self.negated
+        return self
+
     def prefix(self) -> str:
         negated = not self.negated if self.operator == Operator.UNEQUAL else self.negated
         return "-" if negated else ""
