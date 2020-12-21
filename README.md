@@ -9,6 +9,18 @@ Overview
 
 A library providing Python bindings for the Gmail api.
 
+The `Gmail` class
+--------------------
+
+* Central handler class
+* Will run through an interactive webserver for granting delegated authentication if no Oauth token is preconfigured
+* `Gmail.draft` allows for writing new emails using an intuitive fluent-design syntax using the `MessageDraft` class
+* Allows creation/deletion of new user labels and nested labels
+* Creates the entire hierarchy of labels on-the-fly as `Gmail.labels`, such that labels (including nested labels) can be accessed using attribute access (e.g. `Gmail().labels.inbox.some_nested_label()`) 
+* Complex message queries can be written using the `Query` class accessible as `Gmail.messages` in conjunction with the various `Message.Attributes` objects 
+* Labels and categories are fully featured API objects and `Query` objects can be started on them rather than on `Gmail` to limit the resultset of message queries 
+  
+
 Installation
 ====================
 
