@@ -93,7 +93,7 @@ class UserLabel(Label):
         self.gmail.labels._regenerate_label_tree()
 
     @classmethod
-    def create(cls, name: str, label_list_visibility: str = "labelShow", message_list_visibility: set = "show", text_color: str = None, background_color: str = None, *, gmail: Gmail) -> Label:
+    def create(cls, name: str, label_list_visibility: str = "labelShow", message_list_visibility: set = "show", text_color: str = None, background_color: str = None, *, gmail: Gmail) -> UserLabel:
         label = {"name": name, "labelListVisibility": label_list_visibility, "messageListVisibility": message_list_visibility}
 
         if text_color or background_color:

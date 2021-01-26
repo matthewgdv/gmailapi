@@ -22,18 +22,16 @@ class Config(SuperConfig):
 
 class Gmail:
     class Constructors:
-        BaseLabel, Label, UserLabel, SystemLabel, Category = BaseLabel, Label, UserLabel, SystemLabel, Category
-        Message, MessageDraft = Message, MessageDraft
+        Label, UserLabel, SystemLabel, Category = Label, UserLabel, SystemLabel, Category
+        Message, MessageDraft, Query = Message, MessageDraft, Query
         Contact, Body, Attachments, Attachment = Contact, Body, Attachments, Attachment
-
-    constructors = Constructors()
 
     BATCH_SIZE = None  # 25
     BATCH_DELAY_SECONDS = 1
 
     DEFAULT_SCOPES = ["https://mail.google.com/"]
     ALL_SCOPES = [
-        "https://www.googleapis.com/auth/gmail.labels"
+        "https://www.googleapis.com/auth/gmail.labels",
         "https://www.googleapis.com/auth/gmail.send",
         "https://www.googleapis.com/auth/gmail.readonly",
         "https://www.googleapis.com/auth/gmail.compose",
@@ -42,17 +40,18 @@ class Gmail:
         "https://www.googleapis.com/auth/gmail.metadata",
         "https://www.googleapis.com/auth/gmail.settings.basic",
         "https://www.googleapis.com/auth/gmail.settings.sharing",
-        "https://mail.google.com/"
+        "https://mail.google.com/",
     ]
 
     def __init__(self) -> None:
         self.config = Config()
+        self.constructors = self.Constructors()
 
         self.token = self.config.folder.new_dir("tokens").new_file("token", "pkl")
         self.credentials = self.token.content
         self._ensure_credentials_are_valid()
 
-        self.service = build('gmail', 'v1', credentials=self.credentials)
+        self.service = build("gmail", "v1", credentials=self.credentials)
         self.address = self.service.users().getProfile(userId="me").execute()["emailAddress"]
 
         self.labels = LabelAccessor(gmail=self)
@@ -72,7 +71,7 @@ class Gmail:
 
     @property
     def messages(self) -> Query:
-        return Query(gmail=self)
+        return self.constructors.Query(gmail=self)
 
     def create_label(self, name: str, label_list_visibility: str = "labelShow", message_list_visibility: set = "show", text_color: str = None, background_color: str = None) -> UserLabel:
         return self.constructors.UserLabel.create(name=name, label_list_visibility=label_list_visibility, message_list_visibility=message_list_visibility, text_color=text_color, background_color=background_color, gmail=self)
@@ -91,14 +90,14 @@ class Gmail:
             self.token.content = self.credentials
 
         if not self.credentials or not self.credentials.valid:
-            print("Before continuing, please create a new project with OAuth 2.0 credentials, or download your credentials from an existing project.")
+            print("Before continuing, please create a new Gmail API project with OAuth 2.0 credentials, or download your credentials from an existing project.")
             webbrowser.open("https://console.developers.google.com/")
             self.credentials = InstalledAppFlow.from_client_secrets_file(str(self._request_credentials_json()), self.DEFAULT_SCOPES).run_local_server(port=0)
             self.token.content = self.credentials
 
     def _request_credentials_json(self) -> File:
         with Gui(name="gmail", on_close=lambda: None) as gui:
-            widget.Label("Please provide a 'credentials.json' file...").stack()
+            widget.Label("Please provide a client secrets JSON file...").stack()
             file_select = widget.FileSelect().stack()
             widget.Button(text="Continue", command=gui.end).stack()
 
