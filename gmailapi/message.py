@@ -5,7 +5,7 @@ from typing import Any, Tuple, Union, Collection, Optional, TYPE_CHECKING
 import mailparser
 
 from pathmagic import File, Dir, PathLike
-from subtypes import Dict, BaseList, DateTime, Html
+from subtypes import Dict, BaseList, Date, DateTime, Html
 from miscutils import OneOrMany, Base64
 from iotools import HtmlGui
 
@@ -35,10 +35,12 @@ class Message:
         return hash(self.id)
 
     def __contains__(self, other: BaseLabel) -> bool:
-        from .label import BaseLabel
+        from .label import Label, Category
 
-        if isinstance(other, BaseLabel):
-            return other in self.labels or other == self.category
+        if isinstance(other, Label):
+            return other in self.labels
+        elif isinstance(other, Category):
+            return other == self.category
         else:
             raise TypeError(f"Cannot test '{type(other).__name__}' object for membership in a '{type(self).__name__}' object. Must be type '{BaseLabel.__name__}'.")
 
@@ -47,34 +49,34 @@ class Message:
         HtmlGui(name=self.subject, text=str(self.body.html)).start()
 
     def change_category_to(self, category: Category) -> Message:
-        if isinstance(category, self.gmail.constructors.Category):
+        if isinstance(category, self.gmail.Constructors.Category):
             self.gmail.service.users().messages().modify(userId="me", id=self.id, body={"removeLabelIds": self.category.id, "addLabelIds": category.id}).execute()
             self.refresh()
         else:
-            raise TypeError(f"Argument to '{self.change_category_to.__name__}' must be of type '{self.gmail.constructors.Category.__name__}', not '{type(category).__name__}'.")
+            raise TypeError(f"Argument to '{self.change_category_to.__name__}' must be of type '{self.gmail.Constructors.Category.__name__}', not '{type(category).__name__}'.")
 
         return self
 
     def add_labels(self, labels: Union[Label, Collection[Label]]) -> Message:
-        self.gmail.service.users().messages().modify(userId="me", id=self.id, body={"addLabelIds": [label.id for label in OneOrMany(of_type=self.gmail.constructors.Label).to_list(labels)]}).execute()
+        self.gmail.service.users().messages().modify(userId="me", id=self.id, body={"addLabelIds": [label.id for label in OneOrMany(of_type=self.gmail.Constructors.Label).to_list(labels)]}).execute()
         self.refresh()
         return self
 
     def remove_labels(self, labels: Union[Label, Collection[Label]]) -> Message:
-        self.gmail.service.users().messages().modify(userId="me", id=self.id, body={"removeLabelIds": [label.id for label in OneOrMany(of_type=self.gmail.constructors.Label).to_list(labels)]}).execute()
+        self.gmail.service.users().messages().modify(userId="me", id=self.id, body={"removeLabelIds": [label.id for label in OneOrMany(of_type=self.gmail.Constructors.Label).to_list(labels)]}).execute()
         self.refresh()
         return self
 
     def mark_is_read(self, is_read: bool = True) -> Message:
-        self.remove_labels(self.gmail.system.labels.unread()) if is_read else self.add_labels(self.gmail.system.labels.unread())
+        self.remove_labels(self.gmail.labels.system.unread()) if is_read else self.add_labels(self.gmail.labels.system.unread())
         return self
 
     def mark_is_important(self, is_important: bool = True) -> Message:
-        self.add_labels(self.gmail.system.labels.important()) if is_important else self.remove_labels(self.gmail.system.labels.important())
+        self.add_labels(self.gmail.labels.system.important()) if is_important else self.remove_labels(self.gmail.labels.system.important())
         return self
 
     def mark_is_starred(self, is_starred: bool = True) -> Message:
-        self.add_labels(self.gmail.system.labels.starred()) if is_starred else self.remove_labels(self.gmail.system.labels.starred())
+        self.add_labels(self.gmail.labels.system.starred()) if is_starred else self.remove_labels(self.gmail.labels.system.starred())
         return self
 
     def archive(self) -> Message:
@@ -113,17 +115,20 @@ class Message:
         self.parsed = mailparser.parse_from_bytes(Base64.from_b64(self.resource.raw).bytes)
 
         self.subject = self.parsed.subject
-        self.from_ = self.gmail.constructors.Contact.or_none(self.parsed.from_)
-        self.to = self.gmail.constructors.Contact.many_or_none(self.parsed.to)
-        self.cc = self.gmail.constructors.Contact.many_or_none(self.parsed.cc)
-        self.bcc = self.gmail.constructors.Contact.many_or_none(self.parsed.bcc)
+        self.from_ = self.gmail.Constructors.Contact.or_none(self.parsed.from_)
+        self.to = self.gmail.Constructors.Contact.many_or_none(self.parsed.to)
+        self.cc = self.gmail.Constructors.Contact.many_or_none(self.parsed.cc)
+        self.bcc = self.gmail.Constructors.Contact.many_or_none(self.parsed.bcc)
 
-        self.body = Body(text="\n\n".join(self.parsed.text_plain), html="\n\n".join(self.parsed.text_html))
-        self.attachments = Attachments([Attachment(name=attachment["filename"], payload=attachment["payload"]) for attachment in self.parsed.attachments])
+        self.body = Body(text="\n\n".join(self.parsed.text_plain),
+                         html="\n\n".join(self.parsed.text_html))
+        self.attachments = Attachments([
+            Attachment(name=attachment["filename"], payload=attachment["payload"]) for attachment in self.parsed.attachments
+        ])
 
-        all_labels = [self.gmail.labels._id_mappings_[label_id]() for label_id in self.resource.get("labelIds", [])]
-        self.labels = {label for label in all_labels if isinstance(label, self.gmail.constructors.Label)}
-        self.category = OneOrMany(of_type=self.gmail.constructors.Category).to_one_or_none([label for label in all_labels if isinstance(label, self.gmail.constructors.Category)])
+        all_labels = [self.gmail.labels._registry.get_by_id(label_id).entity for label_id in self.resource.get("labelIds", [])]
+        self.labels = {label for label in all_labels if isinstance(label, self.gmail.Constructors.Label)}
+        self.category = OneOrMany(of_type=self.gmail.Constructors.Category).to_one_or_none([label for label in all_labels if isinstance(label, self.gmail.Constructors.Category)])
 
     @classmethod
     def from_id(cls, message_id: str, gmail: Gmail) -> Message:
@@ -151,8 +156,8 @@ class Message:
         class Date(ComparableAttribute, OrderableAttributeMixin):
             name, attr = ComparableName("date", greater="after", less="before"), "date"
 
-            def coerce(self, val: Any) -> str:
-                return DateTime.from_datelike(val).to_isoformat(time=False)
+            def _coerce(self, val: Any) -> str:
+                return Date.infer(val).to_isoformat()
 
         class Size(ComparableAttribute, OrderableAttributeMixin):
             name, attr = ComparableName("size", greater="larger", less="smaller"), "size"

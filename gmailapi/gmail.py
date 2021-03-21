@@ -7,10 +7,9 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 
 from pathmagic import File
-from iotools import Config as SuperConfig, Gui, widget
+from iotools import Config as SuperConfig, Gui, Widget
 
-from .proxy import SystemDefaults, LabelAccessor
-from .label import BaseLabel, Label, UserLabel, SystemLabel, Category
+from .label import BaseLabel, Label, UserLabel, SystemLabel, Category, LabelAccessor
 from .message import Message, MessageDraft, Contact, Body, Attachments, Attachment
 from .query import Query
 import gmailapi
@@ -26,7 +25,7 @@ class Gmail:
         Message, MessageDraft, Query = Message, MessageDraft, Query
         Contact, Body, Attachments, Attachment = Contact, Body, Attachments, Attachment
 
-    BATCH_SIZE = None  # 25
+    BATCH_SIZE = 100
     BATCH_DELAY_SECONDS = 1
 
     DEFAULT_SCOPES = ["https://mail.google.com/"]
@@ -45,19 +44,15 @@ class Gmail:
 
     def __init__(self) -> None:
         self.config = Config()
-        self.constructors = self.Constructors()
 
         self.token = self.config.folder.new_dir("tokens").new_file("token", "pkl")
-        self.credentials = self.token.content
+        self.credentials = self.token.read()
         self._ensure_credentials_are_valid()
 
         self.service = build("gmail", "v1", credentials=self.credentials)
         self.address = self.service.users().getProfile(userId="me").execute()["emailAddress"]
 
         self.labels = LabelAccessor(gmail=self)
-        self.labels._regenerate_label_tree()
-
-        self.system = SystemDefaults(gmail=self)
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(address={repr(self.address)})"
@@ -67,27 +62,27 @@ class Gmail:
 
     @property
     def draft(self) -> MessageDraft:
-        return self.constructors.MessageDraft(gmail=self)
+        return self.Constructors.MessageDraft(gmail=self)
 
     @property
     def messages(self) -> Query:
-        return self.constructors.Query(gmail=self)
+        return self.Constructors.Query(gmail=self)
 
-    def create_label(self, name: str, label_list_visibility: str = "labelShow", message_list_visibility: set = "show", text_color: str = None, background_color: str = None) -> UserLabel:
-        return self.constructors.UserLabel.create(name=name, label_list_visibility=label_list_visibility, message_list_visibility=message_list_visibility, text_color=text_color, background_color=background_color, gmail=self)
+    def create_label(self, name: str, label_list_visibility: str = "labelShow", message_list_visibility: set = "show",
+                     text_color: str = None, background_color: str = None) -> UserLabel:
+        return self.Constructors.UserLabel.create(name=name, label_list_visibility=label_list_visibility, message_list_visibility=message_list_visibility,
+                                                  text_color=text_color, background_color=background_color, gmail=self)
 
     def label_from_name(self, label_name: str) -> BaseLabel:
-        return self.labels._name_mappings_[label_name]()
+        return self.labels._registry.get_by_name(label_name).entity
 
-    def expire(self) -> Gmail:
-        for proxy in self.labels._id_mappings_.values():
-            proxy._entity_ = None
-        return self
+    def _refresh_labels(self):
+        self.labels._refresh()
 
     def _ensure_credentials_are_valid(self) -> None:
         if self.credentials and self.credentials.expired and self.credentials.refresh_token:
             self.credentials.refresh(Request())
-            self.token.content = self.credentials
+            self.token.write(self.credentials)
 
         if not self.credentials or not self.credentials.valid:
             print("Before continuing, please create a new Gmail API project with OAuth 2.0 credentials, or download your credentials from an existing project.")
@@ -97,9 +92,9 @@ class Gmail:
 
     def _request_credentials_json(self) -> File:
         with Gui(name="gmail", on_close=lambda: None) as gui:
-            widget.Label("Please provide a client secrets JSON file...").stack()
-            file_select = widget.FileSelect().stack()
-            widget.Button(text="Continue", command=gui.end).stack()
+            Widget.Label("Please provide a client secrets JSON file...").stack()
+            file_select = Widget.FileSelect().stack()
+            Widget.Button(text="Continue", command=gui.end).stack()
 
         gui.start()
         return file_select.state

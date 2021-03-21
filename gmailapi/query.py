@@ -3,12 +3,10 @@ from __future__ import annotations
 import time
 from typing import Any, Callable, Collection, Union, TYPE_CHECKING, Optional
 
-from googleapiclient.discovery import BatchHttpRequest
-
-from subtypes import Dict
+from subtypes import Dict, List
 from miscutils import OneOrMany, Timer
 
-from .attribute import BaseAttributeMeta, BaseAttribute, Expression, OrderableAttributeMixin, Direction
+from .attribute import BaseAttributeMeta, BaseAttribute, Expression, OrderableAttributeMixin, Enums
 from .message import Message
 from .label import BaseLabel, Label, Category
 
@@ -68,11 +66,14 @@ class Query:
 
     def execute(self) -> list[Message]:
         """Execute this query and return the results."""
-        message_ids = self._fetch_message_ids()
+        message_ids = List(self._fetch_message_ids())
         if not self._gmail.BATCH_SIZE:
-            messages = [self._gmail.constructors.Message.from_id(message_id=message_id, gmail=self._gmail) for message_id in message_ids]
+            messages = [self._gmail.Constructors.Message.from_id(message_id=message_id, gmail=self._gmail) for message_id in message_ids]
         else:
-            messages = sum([self._fetch_messages_in_batch(message_ids[index:index + self._gmail.BATCH_SIZE]) for index in range(0, len(message_ids), self._gmail.BATCH_SIZE)], [])
+            messages = sum([
+                self._fetch_messages_in_batch(sublist)
+                for sublist in message_ids.split_into_batches_of_size(self._gmail.BATCH_SIZE)
+            ], [])
 
         return messages if self._order is None else self._apply_ordering_to_messages(messages)
 
@@ -81,7 +82,7 @@ class Query:
             key: val for key, val in
             {"q": self._where,
              "labelIds": None if self._labels is None else [label.id for label in self._labels],
-             "maxResults": self._limit,
+             "maxResults": 5000 if self._limit is None else self._limit,
              "includeSpamTrash": self._trash}.items()
             if val
         }
@@ -89,37 +90,34 @@ class Query:
         response = Dict(self._gmail.service.users().messages().list(userId="me", **kwargs).execute())
         resources = response.get("messages", [])
 
-        # noinspection PyTypeChecker
-        while "nextPageToken" in response and (max_results := (5000 if self._limit is None else self._limit - len(resources))):
-            # noinspection PyUnboundLocalVariable
-            kwargs["maxResults"] = max_results
+        while "nextPageToken" in response:
             response = Dict(self._gmail.service.users().messages().list(userId="me", pageToken=response.nextPageToken, **kwargs).execute())
             resources += response.messages
 
         return [resouce.id for resouce in resources]
 
-    def _fetch_messages_in_batch(self, message_ids: list[int], batch_delay: int = 1) -> list[Message]:
+    def _fetch_messages_in_batch(self, message_ids: list[int]) -> list[Message]:
         def append_to_list(response_id: str, response: dict, exception: Exception) -> None:
             if exception is not None:
                 raise exception
 
             resources.append(Dict(response))
 
-        timer, resources, batch = Timer(), [], BatchHttpRequest(callback=append_to_list)
+        timer, resources, batch = Timer(), [], self._gmail.service.new_batch_http_request(callback=append_to_list)
         for message_id in message_ids:
             batch.add(self._gmail.service.users().messages().get(userId="me", id=message_id, format="raw"))
 
         batch.execute()
-        messages = [self._gmail.constructors.Message(resource=resource, gmail=self._gmail) for resource in resources]
+        messages = [self._gmail.Constructors.Message(resource=resource, gmail=self._gmail) for resource in resources]
 
-        while timer < self._gmail.BATCH_DELAY_SECONDS:
-            time.sleep(0.05)
+        if timer < self._gmail.BATCH_DELAY_SECONDS:
+            time.sleep(self._gmail.BATCH_DELAY_SECONDS - float(timer))
 
         return messages
 
     def _apply_ordering_to_messages(self, messages: list[Message]) -> list[Message]:
         for attribute in reversed(self._order):
-            messages = sorted(messages, key=lambda msg: getattr(msg, attribute.attr), reverse=attribute.direction == Direction.DESCENDING)
+            messages = sorted(messages, key=lambda msg: getattr(msg, attribute.attr), reverse=attribute.direction is Enums.Direction.DESCENDING)
 
         return messages
 
@@ -166,17 +164,17 @@ class BulkAction:
         return BulkActionContext(action=lambda results: self._gmail.service.users().messages().batchDelete(userId="me", body={"ids": results}), query=self._query)
 
     def change_category_to(self, category: Category) -> BulkActionContext:
-        if isinstance(category, self._gmail.constructors.Category):
+        if isinstance(category, self._gmail.Constructors.Category):
             return BulkActionContext(action=lambda results: self._gmail.service.users().messages().batchModify(userId="me", body={"ids": results, "addLabelIds": [category.id]}), query=self._query)
         else:
-            raise TypeError(f"Argument to '{self.change_category_to.__name__}' must be of type '{self._gmail.constructors.Category.__name__}', not '{type(category).__name__}'.")
+            raise TypeError(f"Argument to '{self.change_category_to.__name__}' must be of type '{self._gmail.Constructors.Category.__name__}', not '{type(category).__name__}'.")
 
     def add_labels(self, labels: Union[Label, Collection[Label]]) -> BulkActionContext:
-        label_ids = OneOrMany(of_type=self._gmail.constructors.Label).to_list(labels)
+        label_ids = OneOrMany(of_type=self._gmail.Constructors.Label).to_list(labels)
         return BulkActionContext(action=lambda results: self._gmail.service.users().messages().batchModify(userId="me", body={"ids": results, "addLabelIds": label_ids}), query=self._query)
 
     def remove_labels(self, labels: Union[Label, Collection[Label]]) -> BulkActionContext:
-        label_ids = OneOrMany(of_type=self._gmail.constructors.Label).to_list(labels)
+        label_ids = OneOrMany(of_type=self._gmail.Constructors.Label).to_list(labels)
         return BulkActionContext(action=lambda results: self._gmail.service.users().messages().batchModify(userId="me", body={"ids": results, "removeLabelIds": label_ids}), query=self._query)
 
     def mark_is_read(self, is_read: bool = True) -> BulkActionContext:

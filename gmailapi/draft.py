@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from typing import List, Union, Collection, TYPE_CHECKING, Optional
+from typing import Union, Collection, TYPE_CHECKING, Optional
 from html import escape, unescape
 
 import emails
@@ -66,7 +66,7 @@ class MessageDraft:
     def send(self) -> bool:
         """Send this message as it currently is."""
         message_id = self.gmail.service.users().messages().send(userId="me", body=self._prepare_message_body()).execute()["id"]
-        return self.gmail.constructors.Message.from_id(message_id=message_id, gmail=self.gmail)
+        return self.gmail.Constructors.Message.from_id(message_id=message_id, gmail=self.gmail)
 
     def _prepare_message_body(self) -> dict:
         html = plain = None  # type: Optional[str]
@@ -93,7 +93,7 @@ class MessageDraft:
         return body
 
     def _parse_contacts(self, contacts: Union[str, Collection[str]]) -> list[str]:
-        return [str(contact) for contact in OneOrMany(of_type=(self.gmail.constructors.Contact, str)).to_list(contacts)]
+        return [str(contact) for contact in OneOrMany(of_type=(self.gmail.Constructors.Contact, str)).to_list(contacts)]
 
     def _html_to_plaintext(self, html: str) -> str:
         markup = Html(unescape(self._html.replace("<br>", "\n")))
