@@ -7,16 +7,12 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 
 from pathmagic import File
-from iotools import Config as SuperConfig, Gui, Widget
+from iotools import Config, Gui, Widget
 
 from .label import BaseLabel, Label, UserLabel, SystemLabel, Category, LabelAccessor
 from .message import Message, MessageDraft, Contact, Body, Attachments, Attachment
 from .query import Query
 import gmailapi
-
-
-class Config(SuperConfig):
-    name = gmailapi.__name__
 
 
 class Gmail:
@@ -43,9 +39,9 @@ class Gmail:
     ]
 
     def __init__(self) -> None:
-        self.config = Config()
+        self.config = Config(name=gmailapi.__name__)
 
-        self.token = self.config.folder.new_dir("tokens").new_file("token", "pkl")
+        self.token = self.config.dir.new_dir("tokens").new_file("token", "pkl")
         self.credentials = self.token.read()
         self._ensure_credentials_are_valid()
 
