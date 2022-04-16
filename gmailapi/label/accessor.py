@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 from subtypes import NameSpace
 
@@ -66,7 +66,7 @@ class LabelAccessor:
         self.system = SystemLabels(gmail=self._gmail)
         self.user = NameSpace()
 
-        self._registry = None
+        self._registry: Optional[Registry] = None
 
         self._refresh()
 

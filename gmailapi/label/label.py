@@ -31,21 +31,8 @@ class BaseLabel:
         return self.gmail.labels._registry.get_by_id(self.id).children[name].entity
 
     @property
-    def parent(self) -> BaseLabel:
-        return self.gmail.labels._registry.get_by_id(self.id).parent.entity
-
-    @property
-    def children(self) -> list[BaseLabel]:
-        return [node.entity for node in self.gmail.labels._registry.get_by_id(self.id).children.values()]
-
-    @property
     def messages(self) -> Query:
         return self.gmail.messages.labels(self)
-
-    def create_child(self, name: str, label_list_visibility: str = "labelShow", message_list_visibility: set = "show",
-                     text_color: str = None, background_color: str = None) -> BaseLabel:
-        return self.gmail.create_label(name=f"{self.name}/{name}", label_list_visibility=label_list_visibility, message_list_visibility=message_list_visibility,
-                                       text_color=text_color, background_color=background_color)
 
     def refresh(self) -> BaseLabel:
         self.resource = Dict(self.gmail.service.users().labels().get(userId="me", id=self.id).execute())
@@ -55,6 +42,20 @@ class BaseLabel:
         self.threads_total, self.threads_unread = self.resource.threadsTotal, self.resource.threadsUnread
         self.message_list_visibility, self.label_list_visibility = self.resource.get("messageListVisibility"), self.resource.get("labelListVisibility")
         return self
+
+
+class Category(BaseLabel):
+    def __contains__(self, other: Message) -> bool:
+        if isinstance(other, self.gmail.Constructors.Message):
+            return self == other.category
+        else:
+            raise TypeError(f"Cannot test '{type(other).__name__}' object for membership in a '{type(self).__name__}' object. Must be type '{Message.__name__}'.")
+
+    def refresh(self) -> None:
+        from .accessor import SystemCategories
+
+        super().refresh()
+        self.name = SystemCategories._id_name_mappings[self.id]
 
 
 class Label(BaseLabel):
@@ -68,6 +69,19 @@ class Label(BaseLabel):
 
 
 class UserLabel(Label):
+    @property
+    def parent(self) -> BaseLabel:
+        return self.gmail.labels._registry.get_by_id(self.id).parent.entity
+
+    @property
+    def children(self) -> list[BaseLabel]:
+        return [node.entity for node in self.gmail.labels._registry.get_by_id(self.id).children.values()]
+
+    def create_child(self, name: str, label_list_visibility: str = "labelShow", message_list_visibility: set = "show",
+                     text_color: str = None, background_color: str = None) -> BaseLabel:
+        return self.gmail.create_label(name=f"{self.name}/{name}", label_list_visibility=label_list_visibility, message_list_visibility=message_list_visibility,
+                                       text_color=text_color, background_color=background_color)
+
     def update(self, name: str = None, label_list_visibility: str = None, message_list_visibility: set = None,
                text_color: str = None, background_color: str = None) -> BaseLabel:
         color = {
@@ -119,17 +133,3 @@ class SystemLabel(Label):
 
         super().refresh()
         self.name = SystemLabels._id_name_mappings[self.id]
-
-
-class Category(BaseLabel):
-    def __contains__(self, other: Message) -> bool:
-        if isinstance(other, self.gmail.Constructors.Message):
-            return self == other.category
-        else:
-            raise TypeError(f"Cannot test '{type(other).__name__}' object for membership in a '{type(self).__name__}' object. Must be type '{Message.__name__}'.")
-
-    def refresh(self) -> None:
-        from .accessor import SystemCategories
-
-        super().refresh()
-        self.name = SystemCategories._id_name_mappings[self.id]

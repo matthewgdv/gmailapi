@@ -19,7 +19,6 @@ class Query:
 
     def __init__(self, gmail: Gmail) -> None:
         self._gmail = gmail
-        self._select: Optional[str] = None
         self._where: Optional[str] = None
         self._labels: Optional[list[BaseLabel]] = None
         self._limit: Optional[int] = self._gmail.BATCH_SIZE or 25
@@ -29,7 +28,7 @@ class Query:
     def __repr__(self) -> str:
         labels = None if self._labels is None else [label.name for label in self._labels]
         order_by = None if self._order is None else [f"{order.attr} {order.direction}" for order in self._order]
-        return f"{type(self).__name__}(select={repr(self._select)}, where={repr(self._where)}, labels={repr(labels)}, limit={self._limit}, include_trash={self._trash}, order_by={repr(order_by)})"
+        return f"{type(self).__name__}(where={repr(self._where)}, labels={repr(labels)}, limit={self._limit}, include_trash={self._trash}, order_by={repr(order_by)})"
 
     def __call__(self) -> Any:
         return self.execute()
@@ -82,7 +81,7 @@ class Query:
             key: val for key, val in
             {"q": self._where,
              "labelIds": None if self._labels is None else [label.id for label in self._labels],
-             "maxResults": 5000 if self._limit is None else self._limit,
+             "maxResults": 99999 if self._limit is None else self._limit,
              "includeSpamTrash": self._trash}.items()
             if val
         }
@@ -91,6 +90,12 @@ class Query:
         resources = response.get("messages", [])
 
         while "nextPageToken" in response:
+            if self._limit is not None:
+                if remainder := (self._limit - len(resources)):
+                    kwargs["maxResults"] = remainder
+                else:
+                    break
+
             response = Dict(self._gmail.service.users().messages().list(userId="me", pageToken=response.nextPageToken, **kwargs).execute())
             resources += response.messages
 
